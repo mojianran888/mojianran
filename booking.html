@@ -291,7 +291,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
     const slotTime = new Date(dateStr);
     slotTime.setHours(h, m, 0, 0);
     const cutoff = new Date();
-    cutoff.setTime(cutoff.getTime() + 36 * 60 * 60 * 1000);
+    cutoff.setTime(cutoff.getTime() + 24 * 60 * 60 * 1000);
     return slotTime < cutoff;
   }
 
