@@ -58,6 +58,7 @@ async function sendMakeWebhook(booking) {
         name: booking.name,
         phone: booking.phone || "",
         email: booking.email || "",
+        lineId: booking.lineId || "",
         contact: booking.contact || "",
         contactType: booking.contactType || "",
         service: booking.service,
@@ -270,7 +271,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
   const [month,setMonth] = useState(now.getMonth());
   const [date,setDate]   = useState(null);
   const [slot,setSlot]   = useState(null);
-  const [form,setForm]   = useState({name:"",contact:"",contactType:"email",note:""});
+  const [form,setForm]   = useState({name:"",phone:"",email:"",lineId:"",note:""});
   const [saving,setSaving]       = useState(false);
   const [emailResult,setEmailResult] = useState(null);
   const [doneId,setDoneId]       = useState("");
@@ -330,16 +331,16 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
   }
 
   async function handleBook(){
-    if(!form.name.trim()||!form.contact.trim()){alert("請填寫姓名與聯絡方式");return;}
+    if(!form.name.trim()||!form.phone.trim()){alert("請填寫姓名與電話");return;}
     setSaving(true);
-    const isEmail = form.contactType==="email";
     const booking = {
       id:`BK${Date.now()}`,
       name:form.name.trim(),
-      phone: isEmail ? "" : form.contact.trim(),
-      email: isEmail ? form.contact.trim() : "",
-      contact: form.contact.trim(),
-      contactType: form.contactType,
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      lineId: form.lineId.trim(),
+      contact: form.email.trim() || form.phone.trim(),
+      contactType: form.email.trim() ? "email" : "phone",
       note:form.note.trim(),
       date, slot, service:svc.name, price: discountRate ? Math.round(svc.price * discountRate) : svc.price,
       originalPrice: svc.price, discount: discountRate ? discountLabel : null,
@@ -348,9 +349,9 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
     await saveBookings([...bookings, booking]);
     // Send Make.com webhook
     sendMakeWebhook(booking);
-    // Send email if contact is email
+    // Send email if email provided
     let eResult = null;
-    if(isEmail){
+    if(booking.email){
       eResult = await sendEmailJS(emailCfg, booking, notices, address);
     }
     setEmailResult(eResult);
@@ -475,8 +476,10 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               // Block Saturday 19:00
               const dateObj = date ? new Date(date) : null;
               const isSat1900 = dateObj && dateObj.getDay()===6 && s==="19:00";
-              const disabled = full || blocked || notEnoughSlots || no3hrSpace || isSat1900;
-              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
+              // Block past slots when date is today
+              const isPastSlot = date===todayStr() && (()=>{const [h,m]=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),h,m)<=t;})();
+              const disabled = full || blocked || notEnoughSlots || no3hrSpace || isSat1900 || isPastSlot;
+              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":isPastSlot?"時段已過":"";
               return (
                 <button key={s} className={`slot ${slot===s?"ss":""}`} disabled={disabled} onClick={()=>setSlot(s)}>
                   <div style={{fontWeight:600}}>{s}</div>
@@ -512,24 +515,18 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               <label>☻ 姓名 <span style={{color:"var(--red)"}}>*</span></label>
               <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="請輸入您的姓名"/>
             </div>
-            {/* Contact type toggle */}
             <div>
-              <label>☻ 聯絡方式 <span style={{color:"var(--red)"}}>*</span></label>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button className={`btab bsm ${form.contactType==="email"?"on":""}`} onClick={()=>setForm(f=>({...f,contactType:"email",contact:""}))}>📧 Email</button>
-                <button className={`btab bsm ${form.contactType==="phone"?"on":""}`} onClick={()=>setForm(f=>({...f,contactType:"phone",contact:""}))}>📞 手機號碼</button>
-              </div>
-              {form.contactType==="email"?(
-                <>
-                  <input type="email" value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} placeholder="請輸入您的 Email（預約確認信將寄送至此）"/>
-                  <div style={{fontSize:11,color:"var(--gold-light)",marginTop:6}}>✉️ 預約完成後系統將自動寄送確認信，內含注意事項與地址</div>
-                </>
-              ):(
-                <>
-                  <input type="tel" value={form.contact} onChange={e=>setForm(f=>({...f,contact:e.target.value}))} placeholder="請輸入您的手機號碼"/>
-                  <div style={{fontSize:11,color:"var(--text3)",marginTop:6}}>📞 老師將透過 LINE 與您確認預約細節</div>
-                </>
-              )}
+              <label>📞 電話 <span style={{color:"var(--red)"}}>*</span></label>
+              <input type="tel" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="請輸入您的手機號碼"/>
+            </div>
+            <div>
+              <label>📧 電子郵件（選填）</label>
+              <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="請輸入 Email（填寫後系統將自動寄送確認信）"/>
+              {form.email&&<div style={{fontSize:11,color:"var(--gold-light)",marginTop:6}}>✉️ 預約完成後系統將自動寄送確認信，內含注意事項與地址</div>}
+            </div>
+            <div>
+              <label>💬 LINE ID（選填）</label>
+              <input value={form.lineId} onChange={e=>setForm(f=>({...f,lineId:e.target.value}))} placeholder="請輸入您的 LINE ID"/>
             </div>
             <div>
               <label>💬 備註（選填）</label>
@@ -539,7 +536,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
           <div style={{padding:"13px 16px",borderRadius:10,background:"rgba(201,162,39,0.06)",border:"1px solid rgba(201,162,39,0.2)",fontSize:12,color:"var(--text2)",lineHeight:1.9,marginBottom:20}}>
             ⚠️ 收到確認通知才算完成預約喔！<br/>期待與您相見 🌙😊
           </div>
-          <NR onBack={()=>setStep(3)} onNext={handleBook} dis={saving||!form.name.trim()||!form.contact.trim()} nl={saving?<>送出中… <span className="spinsm"/></>:"確認送出 ✨"}/>
+          <NR onBack={()=>setStep(3)} onNext={handleBook} dis={saving||!form.name.trim()||!form.phone.trim()} nl={saving?<>送出中… <span className="spinsm"/></>:"確認送出 ✨"}/>
         </div>
       )}
 
