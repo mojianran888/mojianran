@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>莫江然 · 意識空間預約系統</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useCallback } = React;
+    
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const ADMIN_PW = "0000";
+const LINE_URL = "https://lin.ee/pscg9XZ";
+const PERSONAL_LINE = "https://line.me/ti/p/7yJEvJdUY6";
+const ONLINE_SERVICE_IDS = [2, 8, 10, 11]; // 線上服務
+const TIME_SLOTS = ["10:00","11:00","13:00","14:00","15:00","16:00","19:00"];
+const MONTHS_ZH = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
+const WEEKDAYS_ZH = ["日","一","二","三","四","五","六"];
+const THREE_HOUR_IDS = [7]; // 全台首創重建元辰宮
+
+const DEFAULT_SERVICES = [
+  { id:7, name:"全台首創重建元辰宮", desc:"客製化心靈建構｜重建生命藍圖", price:6800, active:true },
+  { id:10, name:"元辰宮深化教準", desc:"30分鐘 / 線上｜必須觀過第一次元辰宮", price:1500, active:true },
+  { id:11, name:"觀看累世角色技能開啟連結天賦", desc:"線上 1小時", price:2500, active:true },
+  { id:9, name:"財富能量調整", desc:"每月農曆30日前報名，初一啟動，每月可報名一次", price:1111, active:true, discountPrice8:888 },
+  { id:2, name:"線上諮詢服務", desc:"15分鐘 / 線上", price:600, active:true },
+  { id:8, name:"線上諮詢服務", desc:"50分鐘 / 線上", price:1800, active:true },
+  { id:1, name:"現場諮詢能量調頻", desc:"40分鐘 / 現場", price:1800, active:true },
+  { id:3, name:"超渡祖先 亡靈", desc:"每位計費", price:8600, active:true },
+  { id:4, name:"超渡嬰靈", desc:"每位計費", price:2000, active:true },
+  { id:5, name:"現場手術台連線", desc:"小產手術現場聯線", price:3600, active:true },
+];
+
+const DEFAULT_NOTICES = ``; // 請至後台「通知設定」自行填寫注意事項
+
+// ─── Google Sheets Sync ───────────────────────────────────────────────────────
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxQdIMD9QvAv9dqe7xIqR9LX6RwDAzAguqztHLaGurJewoNbvGr8DwW0Kf3iUwCyEZ3/exec";
+
+async function gasGet() {
+  try {
+    const res = await fetch(GAS_URL + "?action=getAll");
+    return await res.json();
+  } catch { return null; }
+}
+
+async function gasPostBooking(booking) {
+  try {
+    await fetch(GAS_URL, { method:"POST", body: JSON.stringify({ action:"saveBooking", ...booking }) });
+  } catch {}
+}
+
+async function gasPostSettings(rows) {
+  try {
+    await fetch(GAS_URL, { method:"POST", body: JSON.stringify({ action:"saveSettings", rows }) });
+  } catch {}
+}
+
+// Local storage for admin-only config (emailCfg, address, notices)
+async function storageGet(key) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+  catch { return null; }
+}
+async function storageSet(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); }
+  catch {}
+}
+
+const MAKE_WEBHOOK = "https://hook.eu2.make.com/buq9jsnn73y2cgffexx1ay2sd9sn801z";
+
+async function sendMakeWebhook(booking) {
+  try {
+    await fetch(MAKE_WEBHOOK, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "new_booking",
+        booking_id: booking.id,
+        name: booking.name,
+        phone: booking.phone || "",
+        email: booking.email || "",
+        lineId: booking.lineId || "",
+        contact: booking.contact || "",
+        contactType: booking.contactType || "",
+        service: booking.service,
+        price: booking.price,
+        date: booking.date,
+        slot: booking.slot,
+        note: booking.note || "",
+        created_at: booking.createdAt,
+      }),
+    });
+  } catch(e) {
+    console.log("Webhook error:", e);
+  }
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+const daysInMonth = (y,m) => new Date(y,m+1,0).getDate();
+const firstDayOfMonth = (y,m) => new Date(y,m,1).getDay();
+const isPast = (y,m,d) => { const dt=new Date(y,m,d); dt.setHours(0,0,0,0); const t=new Date(); t.setHours(0,0,0,0); return dt<t; };
+
+// ─── EmailJS Sender ───────────────────────────────────────────────────────────
+async function sendEmailJS(cfg, booking, notices, address) {
+  // cfg: { serviceId, templateId, publicKey }
+  if (!cfg?.serviceId || !cfg?.templateId || !cfg?.publicKey) return { ok:false, reason:"未設定 EmailJS" };
+  if (!booking.email) return { ok:false, reason:"客戶未填 Email" };
+  try {
+    const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id: cfg.serviceId,
+        template_id: cfg.templateId,
+        user_id: cfg.publicKey,
+        template_params: {
+          to_email:    booking.email,
+          to_name:     booking.name,
+          service:     booking.service,
+          date:        booking.date,
+          slot:        booking.slot,
+          price:       booking.price.toLocaleString(),
+          booking_id:  booking.id,
+          address:     address || "（地址將由老師另行通知）",
+          notices:     notices || DEFAULT_NOTICES,
+          line_url:    LINE_URL,
+        },
+      }),
+    });
+    return res.ok ? { ok:true } : { ok:false, reason:`HTTP ${res.status}` };
+  } catch(e) {
+    return { ok:false, reason: e.message };
+  }
+}
+
+// ─── CSS ──────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700;900&family=Noto+Sans+TC:wght@300;400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#c9a227;--gold-light:#e8c84a;--gold-dark:#8a6e18;
+  --bg:#0d2b20;--surface:rgba(255,255,255,0.06);--surface2:rgba(255,255,255,0.1);
+  --text:#e8d8a8;--text2:rgba(232,216,168,0.85);--text3:rgba(232,216,168,0.6);
+  --green:#5dd68c;--red:#f07070;--line:#00C300;--blue:#88b8ff;
+  --r:12px;--rl:18px;
+}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--gold-dark);border-radius:3px}
+.app{min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#1a4a32 0%,transparent 55%),radial-gradient(ellipse at 80% 100%,#153d28 0%,transparent 55%),radial-gradient(ellipse at 50% 50%,#0f3022 0%,transparent 70%),var(--bg)}
+.header{background:rgba(10,40,28,0.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(201,162,39,0.3);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:sticky;top:0;z-index:100}
+.ht{font-family:'Noto Serif TC',serif;font-size:20px;font-weight:900;color:var(--gold-light);letter-spacing:4px}
+.hs{font-size:11px;color:var(--text3);letter-spacing:2px;margin-top:3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;border-radius:var(--r);font-family:'Noto Serif TC',serif;cursor:pointer;transition:all .2s;letter-spacing:1px;font-size:14px;padding:10px 20px;font-weight:600}
+.bg{background:linear-gradient(135deg,var(--gold),var(--gold-light),var(--gold-dark));color:#1a0f00}
+.bg:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(201,162,39,0.35)}
+.bg:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.bgh{background:transparent;color:var(--gold);border:1px solid rgba(201,162,39,0.35)}
+.bgh:hover{background:rgba(201,162,39,0.1)}
+.bgh:disabled{opacity:.3;cursor:not-allowed}
+.bsm{padding:7px 14px;font-size:12px}
+.btab{background:transparent;color:var(--gold);border:1px solid rgba(201,162,39,0.25);border-radius:10px;padding:8px 18px;font-family:'Noto Serif TC',serif;font-size:13px;cursor:pointer;transition:all .2s;font-weight:500}
+.btab.on{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a0f00;border-color:transparent;font-weight:700}
+.card{background:rgba(255,255,255,0.07);border:1px solid rgba(201,162,39,0.25);border-radius:var(--rl);padding:18px;transition:border .2s}
+.cardh{background:rgba(201,162,39,0.07);border-color:rgba(201,162,39,0.3)}
+input,select,textarea{background:rgba(255,255,255,0.05);border:1px solid rgba(201,162,39,0.25);border-radius:10px;color:var(--text);padding:11px 14px;font-family:'Noto Sans TC',sans-serif;font-size:14px;width:100%;outline:none;transition:border .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+input::placeholder,textarea::placeholder{color:var(--text3)}
+select option{background:#0d2015;color:var(--text)}
+label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.tg{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a0f00}
+.to{background:rgba(201,162,39,0.1);border:1px solid rgba(201,162,39,0.3);color:var(--gold-light)}
+.tgr{background:rgba(93,214,140,0.15);border:1px solid rgba(93,214,140,0.3);color:var(--green)}
+.tr{background:rgba(240,112,112,0.15);border:1px solid rgba(240,112,112,0.3);color:var(--red)}
+.tb{background:rgba(136,184,255,0.15);border:1px solid rgba(136,184,255,0.3);color:var(--blue)}
+.steps{display:flex;align-items:flex-start;margin-bottom:28px}
+.sc{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:all .3s}
+.sl{font-size:10px;color:var(--text3);white-space:nowrap;margin-top:5px}
+.cg{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cdh{text-align:center;font-size:11px;color:var(--text3);padding:5px 0}
+.day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;transition:all .15s;border:1px solid transparent;font-size:14px}
+.day:hover:not(.dd):not(.ds){background:rgba(201,162,39,0.1);border-color:rgba(201,162,39,0.3)}
+.ds{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a0f00;font-weight:700}
+.dd{opacity:.25;cursor:not-allowed}
+.dt:not(.ds){border-color:rgba(201,162,39,0.45)}
+.dot{width:5px;height:5px;border-radius:50%;margin-top:2px}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+.slot{padding:10px 12px;border-radius:10px;border:1px solid rgba(201,162,39,0.25);background:rgba(255,255,255,0.03);color:var(--text);font-size:13px;cursor:pointer;transition:all .15s;text-align:center}
+.slot:hover:not(:disabled):not(.ss){border-color:var(--gold);background:rgba(201,162,39,0.08)}
+.ss{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1a0f00;border-color:transparent;font-weight:700}
+.slot:disabled{opacity:.28;cursor:not-allowed}
+.svc{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-radius:var(--r);border:1px solid rgba(201,162,39,0.25);background:rgba(255,255,255,0.05);cursor:pointer;transition:all .15s;gap:12px}
+.svc:hover{border-color:rgba(201,162,39,0.4);background:rgba(201,162,39,0.05)}
+.svc.svcs{border-color:var(--gold);background:rgba(201,162,39,0.1)}
+.nbox{padding:14px 16px;border-radius:12px;font-size:13px;display:flex;align-items:flex-start;gap:10px}
+.nok{background:rgba(93,214,140,0.08);border:1px solid rgba(93,214,140,0.25);color:var(--green)}
+.nfail{background:rgba(240,112,112,0.08);border:1px solid rgba(240,112,112,0.25);color:var(--red)}
+.nwarn{background:rgba(201,162,39,0.08);border:1px solid rgba(201,162,39,0.25);color:var(--gold-light)}
+.ninfo{background:rgba(136,184,255,0.08);border:1px solid rgba(136,184,255,0.25);color:var(--blue)}
+.divr{height:1px;background:linear-gradient(90deg,transparent,rgba(201,162,39,0.25),transparent);margin:22px 0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fu{animation:fadeUp .35s ease forwards}
+.spin{width:22px;height:22px;border:2px solid rgba(201,162,39,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
+.spinsm{width:13px;height:13px;border:2px solid rgba(255,255,255,0.2);border-top-color:currentColor;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle}
+/* Email preview */
+.epreview{background:#fff;border-radius:12px;padding:24px;color:#333;font-size:14px;line-height:1.8}
+.epreview h2{color:#0d4a1f;font-family:'Noto Serif TC',serif;margin-bottom:8px}
+.epreview .ehdr{background:linear-gradient(135deg,#0d4a1f,#1a6b32);color:#fff;border-radius:8px;padding:20px;margin-bottom:20px;text-align:center}
+.epreview .erow{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.epreview .elabel{color:#888;min-width:80px;font-size:13px}
+.epreview .enotice{background:#fdf8ee;border-left:3px solid #c9a227;padding:14px;border-radius:0 8px 8px 0;margin:16px 0;font-size:13px;white-space:pre-line}
+.epreview .efooter{text-align:center;color:#999;font-size:12px;margin-top:20px}
+`;
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [view,setView]           = useState("booking");
+  const [services,setServices]   = useState(DEFAULT_SERVICES);
+  const [bookings,setBookings]   = useState([]);
+  const [quotas,setQuotas]       = useState({});
+  const [defQuota,setDefQuota]   = useState(1);
+  const [emailCfg,setEmailCfg]   = useState({ serviceId:"", templateId:"", publicKey:"" });
+  const [address,setAddress]     = useState("台中（詳細地址請至後台通知設定填寫）");
+  const [notices,setNotices]     = useState(DEFAULT_NOTICES);
+  const [loading,setLoading]     = useState(true);
+  const [adminAuth,setAdminAuth] = useState(false);
+
+  useEffect(()=>{
+    // First load localStorage (fast), then render immediately
+    (async()=>{
+      try {
+        const [ec,ad,nt] = await Promise.all([
+          storageGet("mjr:emailCfg"),
+          storageGet("mjr:address"),
+          storageGet("mjr:notices"),
+        ]);
+        if(ec) setEmailCfg(ec);
+        if(ad) setAddress(ad);
+        if(nt!==null) setNotices(nt);
+      } catch(e) {}
+      setLoading(false); // Show page immediately
+
+      // Then load GAS in background (non-blocking)
+      setTimeout(async()=>{
+        try {
+          const gas = await gasGet();
+          if(gas) {
+            if(gas.bookings && gas.bookings.length > 0) {
+              const bkRows = gas.bookings.filter(r=>r[0]);
+              const bkObjects = bkRows.map(r=>({
+                id:r[0], name:r[1], phone:r[2], email:r[3], lineId:r[4],
+                service:r[5], price:r[6], date:r[7], slot:r[8], note:r[9]
+              }));
+              if(bkObjects.length > 0) setBookings(bkObjects);
+            }
+            if(gas.settings && gas.settings.length > 0) {
+              const settingsMap = {};
+              gas.settings.forEach(r=>{ if(r[0]) settingsMap[r[0]] = r[1]; });
+              if(settingsMap["services"]) { try { setServices(JSON.parse(settingsMap["services"])); } catch {} }
+              if(settingsMap["quotas"])   { try { setQuotas(JSON.parse(settingsMap["quotas"])); } catch {} }
+              if(settingsMap["defQuota"]) { try { setDefQuota(JSON.parse(settingsMap["defQuota"])); } catch {} }
+            }
+          }
+        } catch(e) { console.error("GAS load error:", e); }
+      }, 100);
+    })();
+  },[]);
+
+  const saveServices = useCallback(async v=>{
+    setServices(v);
+    await gasPostSettings([["services", JSON.stringify(v)], ["quotas", JSON.stringify(quotas)], ["defQuota", JSON.stringify(defQuota)]]);
+  },[quotas, defQuota]);
+  const saveBookings = useCallback(async v=>{setBookings(v);},[]);
+  const saveQuotas   = useCallback(async v=>{
+    setQuotas(v);
+    await gasPostSettings([["services", JSON.stringify(services)], ["quotas", JSON.stringify(v)], ["defQuota", JSON.stringify(defQuota)]]);
+  },[services, defQuota]);
+  const saveDefQuota = useCallback(async v=>{
+    setDefQuota(v);
+    await gasPostSettings([["services", JSON.stringify(services)], ["quotas", JSON.stringify(quotas)], ["defQuota", JSON.stringify(v)]]);
+  },[services, quotas]);
+  const saveEmailCfg = useCallback(async v=>{setEmailCfg(v);await storageSet("mjr:emailCfg",v);},[]);
+  const saveAddress  = useCallback(async v=>{setAddress(v); await storageSet("mjr:address",v);},[]);
+  const saveNotices  = useCallback(async v=>{setNotices(v); await storageSet("mjr:notices",v);},[]);
+
+  const getQuota  = (d,s) => quotas[d]?.[s] ?? defQuota;
+  const getBooked = (d,s) => bookings.filter(b=>b.date===d&&b.slot===s).length;
+  const isFull    = (d,s) => getBooked(d,s)>=getQuota(d,s);
+
+  if(loading) return (
+    <div style={{minHeight:"100vh",background:"#060f0a",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+      <style>{CSS}</style><div className="spin"/><div style={{color:"rgba(232,216,168,0.5)",fontSize:13,letterSpacing:2}}>載入中…</div>
+    </div>
+  );
+
+  return (
+    <div className="app">
+      <style>{CSS}</style>
+      <header className="header">
+        <div><div className="ht">莫江然 · 意識空間</div><div className="hs">看見因才能改命｜意識空間譯者</div></div>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <a href={LINE_URL} target="_blank" rel="noreferrer" style={{color:"var(--line)",fontSize:12,border:"1px solid var(--line)",borderRadius:20,padding:"5px 14px",textDecoration:"none",display:"flex",alignItems:"center",gap:5}}>💬 LINE</a>
+          <button className={`btab ${view==="booking"?"on":""}`} onClick={()=>setView("booking")}>預約系統</button>
+          <button className={`btab ${view==="admin"?"on":""}`} onClick={()=>setView("admin")}>後台管理</button>
+        </div>
+      </header>
+      <div style={{maxWidth:860,margin:"0 auto",padding:"28px 16px"}}>
+        {view==="booking"
+          ? <BookingView services={services} bookings={bookings} getQuota={getQuota} getBooked={getBooked} isFull={isFull} saveBookings={saveBookings} emailCfg={emailCfg} address={address} notices={notices}/>
+          : <AdminView   services={services} bookings={bookings} quotas={quotas} defQuota={defQuota} emailCfg={emailCfg} address={address} notices={notices} adminAuth={adminAuth} setAdminAuth={setAdminAuth} saveServices={saveServices} saveBookings={saveBookings} saveQuotas={saveQuotas} saveDefQuota={saveDefQuota} saveEmailCfg={saveEmailCfg} saveAddress={saveAddress} saveNotices={saveNotices} getQuota={getQuota} getBooked={getBooked}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Booking View ─────────────────────────────────────────────────────────────
+function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBookings, emailCfg, address, notices }) {
+  const now=new Date();
+  const [step,setStep]   = useState(1);
+  const [svc,setSvc]     = useState(null);
+  const [year,setYear]   = useState(now.getFullYear());
+  const [month,setMonth] = useState(now.getMonth());
+  const [date,setDate]   = useState(null);
+  const [slot,setSlot]   = useState(null);
+  const [form,setForm]   = useState({name:"",phone:"",email:"",lineId:"",note:"",_contactType:"email"});
+  const [saving,setSaving]       = useState(false);
+  const [emailResult,setEmailResult] = useState(null);
+  const [doneId,setDoneId]       = useState("");
+  const isMay = now.getMonth()===4;
+  const [isBirthday, setIsBirthday] = useState(false);
+  const [is8折, setIs8折] = useState(false);
+
+  const activeServices = services.filter(s=>s.active);
+  const discountRate = isBirthday ? 0.7 : (is8折 ? 0.8 : null);
+  const discountLabel = isBirthday ? "壽星7折" : "8折優惠";
+
+  function isSunday(year, month, day){
+    return new Date(year, month, day).getDay() === 0;
+  }
+
+  // Three-phase cutoff: morning→afternoon today, afternoon→morning tomorrow, evening→afternoon tomorrow
+  function getEarliestBookable() {
+    const now = new Date();
+    const h = now.getHours();
+    const td = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
+    const tmr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
+    if(h < 13) return { date: td, minSlot: "13:00" };
+    if(h < 18) return { date: tmr, minSlot: "10:00" };
+    return { date: tmr, minSlot: "13:00" };
+  }
+
+  function isSaturday(year, month, day){
+    return new Date(year, month, day).getDay() === 6;
+  }
+
+  function hasOpenSlot(day){
+    if(isSunday(year, month, day)) return false;
+    const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const earliest = getEarliestBookable();
+    if(ds < earliest.date) return false;
+    return TIME_SLOTS.some(s=>{
+      if(isSaturday(year,month,day) && s==="19:00") return false;
+      if(ds === earliest.date && s < earliest.minSlot) return false;
+      return !isFull(ds,s);
+    });
+  }
+
+  function isSlotBlocked(slot, date) {
+    // For 3hr services, check if any of the previous 2 slots are booked with 3hr service
+    if (!svc || !THREE_HOUR_IDS.includes(svc.id)) return false;
+    const idx = TIME_SLOTS.indexOf(slot);
+    // Block last slot (index 6 = 19:00 is ok, but if svc is 3hr, we still allow 19:00)
+    // Check if this slot would be blocked by a previous 3hr booking on same date
+    for (let i = Math.max(0, idx-2); i < idx; i++) {
+      const prevSlot = TIME_SLOTS[i];
+      const blockedByBooking = bookings.some(b => b.date===date && b.slot===prevSlot && THREE_HOUR_IDS.includes(
+        DEFAULT_SERVICES.find(sv=>sv.name===b.service)?.id
+      ));
+      if (blockedByBooking) return true;
+    }
+    return false;
+  }
+
+  function isSlotAvailableFor3hr(slot, dateStr) {
+    // For 3hr service, also need next 2 slots to not be full
+    if (!svc || !THREE_HOUR_IDS.includes(svc.id)) return true;
+    const idx = TIME_SLOTS.indexOf(slot);
+    // Check next 2 slots exist and are not full
+    for (let i = 1; i <= 2; i++) {
+      if (idx + i < TIME_SLOTS.length) {
+        const nextSlot = TIME_SLOTS[idx + i];
+        if (isFull(dateStr, nextSlot)) return false;
+      }
+    }
+    return true;
+  }
+
+  async function handleBook(){
+    if(!form.name.trim()||!form.phone.trim()){alert("請填寫姓名與電話");return;}
+    if(!form.email.trim()&&!form.lineId.trim()){alert("請填寫 Email 或 LINE ID（至少一項）");return;}
+    setSaving(true);
+    const booking = {
+      id:`BK${Date.now()}`,
+      name:form.name.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      lineId: form.lineId.trim(),
+      contact: form.email.trim() || form.phone.trim(),
+      contactType: form.email.trim() ? "email" : "phone",
+      note:form.note.trim(),
+      date, slot, service:svc.name, price: discountRate ? Math.round(svc.price * discountRate) : svc.price,
+      originalPrice: svc.price, discount: discountRate ? discountLabel : null,
+      createdAt:new Date().toISOString(), status:"confirmed",
+    };
+    await saveBookings([...bookings, booking]);
+    // Send to Google Sheets via GAS
+    gasPostBooking(booking);
+    // Send Make.com webhook
+    sendMakeWebhook(booking);
+    // Send email if email provided
+    let eResult = null;
+    if(booking.email){
+      eResult = await sendEmailJS(emailCfg, booking, notices, address);
+    }
+    setEmailResult(eResult);
+    setDoneId(booking.id);
+    setSaving(false);
+    setStep(5);
+  }
+
+  const steps=[{n:1,l:"選服務"},{n:2,l:"選日期"},{n:3,l:"選時段"},{n:4,l:"填資料"},{n:5,l:"完成"}];
+
+  return (
+    <div className="fu">
+      {/* Promos */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+        <button
+          onClick={()=>{setIs8折(b=>!b); if(!is8折) setIsBirthday(false);}}
+          style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:"2px solid",transition:"all .2s",textAlign:"left",
+            background: is8折?"linear-gradient(135deg,var(--gold),var(--gold-light))":"transparent",
+            borderColor: is8折?"var(--gold-light)":"rgba(201,162,39,0.4)",
+            color: is8折?"#1a0f00":"var(--gold-light)"}}>
+          🌟 {is8折 ? "✓ 8折優惠已套用！" : "即日起至5月31日止，預約享8折優惠，開放預約全年檔期，名額有限。（點我套用）"}
+        </button>
+        <button
+          onClick={()=>{setIsBirthday(b=>!b); if(!isBirthday) setIs8折(false);}}
+          style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:"2px solid",transition:"all .2s",
+            background: isBirthday?"linear-gradient(135deg,#e87040,#f0a060)":"transparent",
+            borderColor: isBirthday?"#f0a060":"rgba(240,160,96,0.4)",
+            color: isBirthday?"#fff":"#f0a060"}}>
+          🎂 {isBirthday ? "✓ 壽星7折已套用！" : "我是本月壽星（點我享7折）"}
+        </button>
+      </div>
+
+      {/* Step bar */}
+      <div className="steps">
+        {steps.map((s,i)=>{
+          const done=step>s.n; const act=step===s.n;
+          return (
+            <div key={s.n} style={{display:"flex",alignItems:"flex-start",flex:1}}>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,flex:"0 0 auto"}}>
+                <div className="sc" style={{background:(done||act)?"linear-gradient(135deg,var(--gold),var(--gold-light))":"var(--surface2)",color:(done||act)?"#1a0f00":"var(--text3)",boxShadow:act?"0 0 14px rgba(201,162,39,0.4)":"none"}}>{done?"✓":s.n}</div>
+                <div className="sl" style={{color:(done||act)?"var(--gold-light)":"var(--text3)"}}>{s.l}</div>
+              </div>
+              {i<steps.length-1&&<div style={{flex:1,height:2,background:done?"linear-gradient(90deg,var(--gold),var(--gold-light))":"rgba(201,162,39,0.15)",margin:"15px 4px 0",minWidth:6}}/>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Step 1: Service */}
+      {step===1&&(
+        <div className="fu">
+          <ST>☆ 選擇服務項目</ST>
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
+            {activeServices.map(s=>(
+              <div key={s.id} className={`svc ${svc?.id===s.id?"svcs":""}`} onClick={()=>setSvc(s)}>
+                <div>
+                  <div style={{fontWeight:600,fontSize:15}}>{s.name}</div>
+                  {s.desc&&<div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>{s.desc}</div>}
+                  {ONLINE_SERVICE_IDS.includes(s.id)&&<div style={{fontSize:11,color:"var(--line)",marginTop:4}}>💬 線上服務請加老師個人 LINE：<a href={PERSONAL_LINE} target="_blank" rel="noreferrer" style={{color:"var(--line)"}}>點此加入</a></div>}
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:17}}>${s.price.toLocaleString()}</div>
+                  {discountRate && (
+                    <div style={{marginTop:4}}>
+                      <div style={{fontSize:11,color:isBirthday?"#f0a060":"var(--green)"}}>{discountLabel}</div>
+                      <div style={{color:isBirthday?"#f0a060":"var(--green)",fontWeight:700,fontSize:15}}>${(is8折 && s.discountPrice8) ? s.discountPrice8.toLocaleString() : Math.round(s.price*discountRate).toLocaleString()}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{textAlign:"right"}}><button className="btn bg" disabled={!svc} onClick={()=>setStep(2)}>選擇日期 →</button></div>
+        </div>
+      )}
+
+      {/* Step 2: Date */}
+      {step===2&&(
+        <div className="fu">
+          <ST>🗓️ 選擇日期</ST>
+          <div className="card" style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <button className="btn bgh bsm" onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);setDate(null);}}>‹ 上月</button>
+              <div style={{fontFamily:"'Noto Serif TC',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)",letterSpacing:3}}>{year} · {MONTHS_ZH[month]}</div>
+              <button className="btn bgh bsm" onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);setDate(null);}}>下月 ›</button>
+            </div>
+            <div className="cg">
+              {WEEKDAYS_ZH.map(w=><div key={w} className="cdh">{w}</div>)}
+              {Array.from({length:firstDayOfMonth(year,month)},(_,i)=><div key={"e"+i}/>)}
+              {Array.from({length:daysInMonth(year,month)},(_,i)=>{
+                const day=i+1;
+                const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                const past=isPast(year,month,day); const sun=isSunday(year,month,day); const open=!past&&!sun&&hasOpenSlot(day);
+                const isTd=ds===todayStr(); const sel=date===ds;
+                return (
+                  <div key={day} className={`day ${sel?"ds":""} ${(past||sun||(!open&&!past))?"dd":""} ${isTd&&!sel?"dt":""}`} onClick={()=>{if(!past&&!sun&&open){setDate(ds);setSlot(null);}}}>
+                    <span>{day}</span>
+                    {!past&&!sun&&open&&!sel&&<div className="dot" style={{background:"var(--green)"}}/>}
+                    {!past&&!sun&&!open&&<div className="dot" style={{background:"var(--red)"}}/>}
+                    {!past&&sun&&!sel&&<div style={{fontSize:9,color:"rgba(232,216,168,0.4)",marginTop:1}}>休</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{fontSize:12,color:"var(--text3)",display:"flex",gap:16,marginBottom:18}}>
+            <span><span style={{color:"var(--green)"}}>●</span> 有名額</span>
+            <span><span style={{color:"var(--red)"}}>●</span> 已滿</span>
+          </div>
+          <NR onBack={()=>setStep(1)} onNext={()=>setStep(3)} dis={!date} nl="選擇時段 →"/>
+        </div>
+      )}
+
+      {/* Step 3: Slot */}
+      {step===3&&(
+        <div className="fu">
+          <ST>🕐 選擇時段</ST>
+          <div style={{fontSize:13,color:"var(--text2)",marginBottom:14}}>📅 {date}</div>
+          <div className="sgrid" style={{marginBottom:22}}>
+            {TIME_SLOTS.map((s,idx)=>{
+              const b=getBooked(date,s); const q=getQuota(date,s); const full=b>=q;
+              const is3hr = svc && THREE_HOUR_IDS.includes(svc.id);
+              const blocked = isSlotBlocked(s, date);
+              const notEnoughSlots = is3hr && idx > TIME_SLOTS.length - 3;
+              const no3hrSpace = is3hr && !isSlotAvailableFor3hr(s, date);
+              // Block Saturday 19:00
+              const dateObj = date ? new Date(date) : null;
+              const isSat1900 = dateObj && dateObj.getDay()===6 && s==="19:00";
+              // Block past slots when date is today
+              const isPastSlot = date===todayStr() && (()=>{const [h,m]=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),h,m)<=t;})();
+              const earliest = getEarliestBookable();
+              const isTooEarly = date < earliest.date || (date === earliest.date && s < earliest.minSlot);
+              const disabled = full || blocked || notEnoughSlots || no3hrSpace || isSat1900 || isPastSlot || isTooEarly;
+              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":isPastSlot||isTooEarly?"時段已過":"";
+              return (
+                <button key={s} className={`slot ${slot===s?"ss":""}`} disabled={disabled} onClick={()=>setSlot(s)}>
+                  <div style={{fontWeight:600}}>{s}</div>
+                  <div style={{fontSize:10,marginTop:3,color:disabled?"var(--red)":"var(--green)"}}>
+                    {disabled ? (reason||"不可選") : `剩 ${q-b} 名`}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <NR onBack={()=>setStep(2)} onNext={()=>setStep(4)} dis={!slot} nl="填寫資料 →"/>
+        </div>
+      )}
+
+      {/* Step 4: Form */}
+      {step===4&&(
+        <div className="fu">
+          <ST>✍️ 填寫預約資料</ST>
+          {/* Summary */}
+          <div className="card cardh" style={{marginBottom:20}}>
+            <div style={{fontSize:12,color:"var(--text3)",marginBottom:10}}>預約摘要</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              <span className="tag to">📋 {svc?.name}</span>
+              {discountRate
+                ? <span className="tag to">💰 <s style={{opacity:.5}}>${svc?.price.toLocaleString()}</s> → ${Math.round((svc?.price||0)*discountRate).toLocaleString()} <span style={{color:isBirthday?"#f0a060":"var(--green)",fontSize:10}}>({discountLabel})</span></span>
+                : <span className="tag to">💰 ${svc?.price.toLocaleString()}</span>}
+              <span className="tag to">📅 {date}</span>
+              <span className="tag to">🕐 {slot}</span>
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:16,marginBottom:20}}>
+            <div>
+              <label>☻ 姓名 <span style={{color:"var(--red)"}}>*</span></label>
+              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="請輸入您的姓名"/>
+            </div>
+            <div>
+              <label>📞 電話 <span style={{color:"var(--red)"}}>*</span></label>
+              <input type="tel" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="請輸入您的手機號碼"/>
+            </div>
+            <div>
+              <label>📧 聯絡方式 <span style={{color:"var(--red)"}}>*</span> <span style={{color:"var(--gold-light)",fontSize:11}}>（擇一填寫）</span></label>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <button className={`btab bsm ${!form.lineId&&form.email!==undefined&&form._contactType!=="line"?"on":""}`} onClick={()=>setForm(f=>({...f,_contactType:"email",lineId:""}))}>📧 Email</button>
+                <button className={`btab bsm ${form._contactType==="line"?"on":""}`} onClick={()=>setForm(f=>({...f,_contactType:"line",email:""}))}>💬 LINE ID</button>
+              </div>
+              {form._contactType!=="line"?(
+                <>
+                  <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="請輸入 Email（填寫後系統將自動寄送確認信）"/>
+                  {form.email&&<div style={{fontSize:11,color:"var(--gold-light)",marginTop:6}}>✉️ 預約完成後系統將自動寄送確認信，內含注意事項與地址</div>}
+                </>
+              ):(
+                <input value={form.lineId} onChange={e=>setForm(f=>({...f,lineId:e.target.value}))} placeholder="請輸入您的 LINE ID"/>
+              )}
+            </div>
+            <div>
+              <label>💬 備註（選填）</label>
+              <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="有任何想提前說明的可以寫在這裡" rows={3} style={{resize:"vertical"}}/>
+            </div>
+          </div>
+          <div style={{padding:"13px 16px",borderRadius:10,background:"rgba(201,162,39,0.06)",border:"1px solid rgba(201,162,39,0.2)",fontSize:12,color:"var(--text2)",lineHeight:1.9,marginBottom:20}}>
+            ⚠️ 收到確認通知才算完成預約喔！<br/>期待與您相見 🌙😊
+          </div>
+          <NR onBack={()=>setStep(3)} onNext={handleBook} dis={saving||!form.name.trim()||!form.phone.trim()||(!form.email.trim()&&!form.lineId.trim())} nl={saving?<>送出中… <span className="spinsm"/></>:"確認送出 ✨"}/>
+        </div>
+      )}
+
+      {/* Step 5: Done */}
+      {step===5&&(
+        <div className="fu" style={{textAlign:"center",padding:"44px 0"}}>
+          <div style={{fontSize:60,marginBottom:16,filter:"drop-shadow(0 0 20px rgba(201,162,39,0.4))"}}>🌙</div>
+          <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:24,color:"var(--gold-light)",letterSpacing:3,marginBottom:6}}>預約資料已送出</h2>
+          <div style={{fontSize:13,color:"var(--text3)",marginBottom:24}}>預約編號：{doneId}</div>
+
+          {/* Booking summary */}
+          <div className="card cardh" style={{maxWidth:360,margin:"0 auto 20px",textAlign:"left"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:9,fontSize:14,color:"var(--text2)"}}>
+              <div>📋 {svc?.name}</div>
+              <div>📅 {date} &nbsp;🕐 {slot}</div>
+              <div>👤 {form.name}</div>
+              <div>{form.email?"📧 "+form.email:form.lineId?"💬 "+form.lineId:"📞 "+form.phone}</div>
+              <div>💰 ${svc?.price.toLocaleString()}</div>
+            </div>
+          </div>
+
+          {/* Email notification status */}
+          {form.email && emailResult && (
+            <div className={`nbox ${emailResult.ok?"nok":"nfail"}`} style={{maxWidth:360,margin:"0 auto 16px"}}>
+              {emailResult.ok
+                ? <><span>✅</span><span>確認信已寄出！請查收您的信箱（包含注意事項與地址）</span></>
+                : <><span>⚠️</span><span>Email 發送失敗（{emailResult.reason}）。請透過 LINE 聯繫老師確認。</span></>}
+            </div>
+          )}
+          {form.email && !emailResult && (
+            <div className="nbox nwarn" style={{maxWidth:360,margin:"0 auto 16px"}}>
+              <span>ℹ️</span><span>Email 通知尚未設定，請透過 LINE 與老師確認預約。</span>
+            </div>
+          )}
+          {!form.email && (
+            <div className="nbox ninfo" style={{maxWidth:360,margin:"0 auto 16px"}}>
+              <span>📞</span><span>老師將透過 LINE 官方帳號與您確認，請注意訊息通知。</span>
+            </div>
+          )}
+
+          {/* Inline notices & address on done page */}
+          {(notices||address) && (
+            <div style={{maxWidth:360,margin:"0 auto 20px",textAlign:"left"}}>
+              {notices&&(
+                <div style={{background:"rgba(201,162,39,0.07)",border:"1px solid rgba(201,162,39,0.2)",borderRadius:12,padding:16,marginBottom:12}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--gold-light)",marginBottom:8}}>📋 注意事項</div>
+                  <div style={{fontSize:13,color:"var(--text2)",whiteSpace:"pre-line",lineHeight:2}}>{notices}</div>
+                </div>
+              )}
+              {address&&(
+                <div style={{background:"rgba(136,184,255,0.07)",border:"1px solid rgba(136,184,255,0.2)",borderRadius:12,padding:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--blue)",marginBottom:8}}>📍 地址</div>
+                  <div style={{fontSize:14,color:"var(--text2)",lineHeight:1.8}}>{address}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <a href={LINE_URL} target="_blank" rel="noreferrer"
+            style={{display:"inline-flex",alignItems:"center",gap:8,background:"var(--line)",color:"#fff",padding:"12px 28px",borderRadius:30,textDecoration:"none",fontWeight:700,fontSize:15,transition:"all .2s"}}>
+            💬 前往 LINE 確認預約
+          </a>
+          <div style={{maxWidth:360,margin:"20px auto 0",padding:"14px 16px",borderRadius:12,background:"rgba(255,80,80,0.06)",border:"1px solid rgba(255,80,80,0.2)",fontSize:12,color:"var(--text2)",lineHeight:2,textAlign:"left"}}>
+            ⚠️ <strong>如需取消或更改時段，請於 24 小時前告知</strong><br/>
+            📌 取消方式：加入老師個人 LINE 聯繫<br/>
+            <a href={PERSONAL_LINE} target="_blank" rel="noreferrer" style={{color:"var(--line)",wordBreak:"break-all"}}>{PERSONAL_LINE}</a>
+          </div>
+          <div style={{marginTop:20}}>
+            <button className="btn bgh" onClick={()=>{setStep(1);setSvc(null);setDate(null);setSlot(null);setForm({name:"",phone:"",email:"",lineId:"",note:"",_contactType:"email"});setEmailResult(null);}}>再次預約</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+function AdminView({ services, bookings, quotas, defQuota, emailCfg, address, notices, adminAuth, setAdminAuth, saveServices, saveBookings, saveQuotas, saveDefQuota, saveEmailCfg, saveAddress, saveNotices, getQuota, getBooked }) {
+  const [pw,setPw]   = useState("");
+  const [tab,setTab] = useState("bookings");
+
+  if(!adminAuth) return (
+    <div className="fu" style={{maxWidth:340,margin:"60px auto",textAlign:"center"}}>
+      <div style={{fontSize:48,marginBottom:16}}>🔐</div>
+      <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:20,color:"var(--gold-light)",marginBottom:20,letterSpacing:2}}>後台管理登入</h2>
+      <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="請輸入管理密碼" style={{marginBottom:14,textAlign:"center"}} autoCorrect="off" autoCapitalize="off" autoComplete="off" onKeyDown={e=>{if(e.key==="Enter"){if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}}/>
+      <button className="btn bg" style={{width:"100%"}} onClick={()=>{if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}>登入</button>
+      <div style={{marginTop:10,fontSize:11,color:"var(--text3)"}}>密碼：0000</div>
+    </div>
+  );
+
+  const stats={total:bookings.length,revenue:bookings.reduce((a,b)=>a+b.price,0),today:bookings.filter(b=>b.date===todayStr()).length};
+
+  return (
+    <div className="fu">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:20,color:"var(--gold-light)",letterSpacing:2}}>⚙️ 後台管理</h2>
+        <button className="btn bgh bsm" onClick={()=>setAdminAuth(false)}>登出</button>
+      </div>
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12,marginBottom:24}}>
+        {[{l:"總預約數",v:stats.total+" 筆",i:"📋"},{l:"今日預約",v:stats.today+" 筆",i:"📅"},{l:"總金額",v:"$"+stats.revenue.toLocaleString(),i:"💰"}].map(s=>(
+          <div key={s.l} className="card cardh" style={{textAlign:"center"}}>
+            <div style={{fontSize:22,marginBottom:6}}>{s.i}</div>
+            <div style={{fontSize:20,fontWeight:700,color:"var(--gold-light)",fontFamily:"'Noto Serif TC',serif"}}>{s.v}</div>
+            <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      {/* Tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
+        {[["bookings","📋 預約紀錄"],["services","💼 服務管理"],["quotas","📊 名額設定"],["notify","✉️ 通知設定"]].map(([t,l])=>(
+          <button key={t} className={`btab ${tab===t?"on":""}`} onClick={()=>setTab(t)}>{l}</button>
+        ))}
+      </div>
+      {tab==="bookings" &&<AdminBookings bookings={bookings} saveBookings={saveBookings}/>}
+      {tab==="services" &&<AdminServices services={services} saveServices={saveServices}/>}
+      {tab==="quotas"   &&<AdminQuotas   quotas={quotas} defQuota={defQuota} saveQuotas={saveQuotas} saveDefQuota={saveDefQuota} getQuota={getQuota} getBooked={getBooked} bookings={bookings}/>}
+      {tab==="notify"   &&<AdminNotify   emailCfg={emailCfg} address={address} notices={notices} saveEmailCfg={saveEmailCfg} saveAddress={saveAddress} saveNotices={saveNotices}/>}
+    </div>
+  );
+}
+
+// ─── Admin: Notify Settings ───────────────────────────────────────────────────
+function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, saveNotices }) {
+  const [cfg,setCfg]   = useState(emailCfg);
+  const [addr,setAddr] = useState(address);
+  const [ntc,setNtc]   = useState(notices);
+  const [testing,setTesting] = useState(false);
+  const [testResult,setTestResult] = useState(null);
+  const [saved,setSaved]     = useState(false);
+  const [previewEmail,setPreviewEmail] = useState("");
+
+  async function handleSave(){
+    await Promise.all([saveEmailCfg(cfg), saveAddress(addr), saveNotices(ntc)]);
+    setSaved(true); setTimeout(()=>setSaved(false),2000);
+  }
+
+  async function handleTest(){
+    if(!previewEmail){alert("請填寫測試用 Email");return;}
+    if(!cfg.serviceId||!cfg.templateId||!cfg.publicKey){alert("請先填寫 EmailJS 設定");return;}
+    setTesting(true); setTestResult(null);
+    const fakeBooking={id:"BK_TEST",name:"測試客戶",email:previewEmail,service:"現場諮詢能量調頻",price:1800,date:todayStr(),slot:"10:00"};
+    const r = await sendEmailJS(cfg, fakeBooking, ntc, addr);
+    setTestResult(r); setTesting(false);
+  }
+
+  return (
+    <div>
+      {/* Address & Notices */}
+      <div style={{marginBottom:28}}>
+        <div style={{fontSize:16,fontWeight:700,color:"var(--gold-light)",marginBottom:16,fontFamily:"'Noto Serif TC',serif"}}>📍 地址與注意事項</div>
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div>
+            <label>📍 諮詢地址（預約完成頁面與 Email 都會顯示）</label>
+            <input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="例：台中市西區 ○○路 ○○號（請填寫完整地址）"/>
+          </div>
+          <div>
+            <label>📋 注意事項（預約完成頁面與 Email 都會顯示）</label>
+            <textarea value={ntc} onChange={e=>setNtc(e.target.value)} rows={7} style={{resize:"vertical"}} placeholder="每行一條注意事項"/>
+            <div style={{fontSize:11,color:"var(--text3)",marginTop:5}}>每行一條，客人預約完成後會在頁面上直接看到，也會在 Email 中收到</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="divr"/>
+
+      {/* EmailJS */}
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:16,fontWeight:700,color:"var(--gold-light)",marginBottom:6,fontFamily:"'Noto Serif TC',serif"}}>✉️ Email 自動通知（EmailJS）</div>
+        <div style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.8}}>
+          客戶填寫 Email 預約後，系統自動寄出確認信（含注意事項＋地址）。<br/>
+          需先到 <a href="https://emailjs.com" target="_blank" rel="noreferrer" style={{color:"var(--gold-light)"}}>emailjs.com</a> 免費註冊並取得以下三組金鑰。
+        </div>
+
+        {/* Setup steps */}
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+          {[
+            {n:"1",t:"註冊 EmailJS 免費帳號",d:"前往 emailjs.com → Sign Up（免費 200 封/月）"},
+            {n:"2",t:"建立 Email Service",d:"Add New Service → 連接 Gmail 或其他信箱 → 複製 Service ID"},
+            {n:"3",t:"建立 Email Template",d:"Email Templates → Create New → 貼上下方模板內容 → 複製 Template ID"},
+            {n:"4",t:"取得 Public Key",d:"Account → General → Public Key"},
+            {n:"5",t:"填入下方並儲存",d:"三組金鑰都填好後點「儲存設定」"},
+          ].map(s=>(
+            <div key={s.n} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold),var(--gold-light))",color:"#1a0f00",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>{s.n}</div>
+              <div><div style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.t}</div><div style={{fontSize:12,color:"var(--text3)"}}>{s.d}</div></div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
+          <div><label>Service ID</label><input value={cfg.serviceId} onChange={e=>setCfg(c=>({...c,serviceId:e.target.value}))} placeholder="service_xxxxxxx"/></div>
+          <div><label>Template ID</label><input value={cfg.templateId} onChange={e=>setCfg(c=>({...c,templateId:e.target.value}))} placeholder="template_xxxxxxx"/></div>
+          <div><label>Public Key</label><input value={cfg.publicKey} onChange={e=>setCfg(c=>({...c,publicKey:e.target.value}))} placeholder="xxxxxxxxxxxxxxx"/></div>
+        </div>
+
+        <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+          <button className="btn bg" onClick={handleSave}>{saved?"✅ 已儲存":"儲存設定"}</button>
+          <div style={{display:"flex",gap:8,alignItems:"center",flex:1,minWidth:200}}>
+            <input value={previewEmail} onChange={e=>setPreviewEmail(e.target.value)} placeholder="輸入測試 Email 地址" style={{flex:1}}/>
+            <button className="btn bgh bsm" onClick={handleTest} disabled={testing} style={{flexShrink:0}}>
+              {testing?<><span className="spinsm"/> 寄送中</>:"🧪 測試"}
+            </button>
+          </div>
+        </div>
+
+        {testResult&&(
+          <div className={`nbox ${testResult.ok?"nok":"nfail"}`} style={{marginBottom:16}}>
+            {testResult.ok?<><span>✅</span><span>測試信寄出成功！請查收信箱確認樣式。</span></>:<><span>❌</span><span>發送失敗：{testResult.reason}。請確認金鑰正確。</span></>}
+          </div>
+        )}
+      </div>
+
+      <div className="divr"/>
+
+      {/* Email Template */}
+      <div>
+        <div style={{fontSize:15,fontWeight:700,color:"var(--gold-light)",marginBottom:12,fontFamily:"'Noto Serif TC',serif"}}>📄 EmailJS Template 內容（複製貼到 EmailJS）</div>
+        <div style={{fontSize:12,color:"var(--text3)",marginBottom:12}}>在 EmailJS → Email Templates → 選你的 template → Content 貼入以下內容：</div>
+        <div style={{background:"rgba(0,0,0,0.35)",borderRadius:12,padding:16,fontSize:12,fontFamily:"monospace",color:"var(--text2)",lineHeight:2,border:"1px solid rgba(201,162,39,0.2)",whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
+          {"Subject: 【莫江然·意識空間】預約確認通知 🌙\n\n親愛的 {{to_name}} 您好，\n\n感謝您預約莫江然老師的服務，以下是您的預約資訊：\n\n━━━━━━━━━━━━━━━━━━\n📋 服務項目：{{service}}\n📅 預約日期：{{date}}\n🕐 預約時間：{{slot}}\n💰 服務費用：${{price}}\n🔖 預約編號：{{booking_id}}\n━━━━━━━━━━━━━━━━━━\n\n📍 諮詢地址：\n{{address}}\n\n📋 注意事項：\n{{notices}}\n\n━━━━━━━━━━━━━━━━━━\n⚠️ 如需取消或更改，請透過 LINE 官方帳號通知老師：\n{{line_url}}\n\n期待與您相見 🌙✨\n莫江然 · 意識空間"}
+        </div>
+
+        {/* Email Preview */}
+        <div style={{marginTop:20}}>
+          <div style={{fontSize:14,fontWeight:700,color:"var(--gold-light)",marginBottom:12}}>👁️ 客戶收到的 Email 預覽</div>
+          <div className="epreview">
+            <div className="ehdr">
+              <div style={{fontSize:11,letterSpacing:3,opacity:.8,marginBottom:6}}>莫江然 · 意識空間</div>
+              <h2 style={{fontSize:20,color:"#fff",marginBottom:0}}>預約確認通知 🌙</h2>
+            </div>
+            <p style={{marginBottom:16,color:"#555"}}>親愛的 <strong>（客戶姓名）</strong> 您好，感謝您預約莫江然老師的服務。</p>
+            {[["📋 服務項目","現場諮詢能量調頻"],["📅 預約日期","（客戶選擇的日期）"],["🕐 預約時間","（客戶選擇的時段）"],["💰 服務費用","$1,800"],["🔖 預約編號","BK_XXXXXXXXX"]].map(([l,v])=>(
+              <div key={l} className="erow"><div className="elabel">{l}</div><div>{v}</div></div>
+            ))}
+            {addr&&<><div style={{marginTop:16,fontWeight:600,color:"#333"}}>📍 諮詢地址</div><div style={{marginTop:6,color:"#555"}}>{addr}</div></>}
+            {ntc&&<><div style={{marginTop:16,fontWeight:600,color:"#333"}}>📋 注意事項</div><div className="enotice">{ntc}</div></>}
+            <div className="efooter">
+              <p>如需取消或更改，請透過 LINE 官方帳號通知老師</p>
+              <p style={{marginTop:4,color:"var(--line)"}}>💬 LINE：{LINE_URL}</p>
+              <p style={{marginTop:12}}>莫江然 · 意識空間 ✨</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Admin: Bookings ──────────────────────────────────────────────────────────
+function AdminBookings({ bookings, saveBookings }) {
+  const [q,setQ]     = useState("");
+  const [sort,setSort] = useState("newest");
+  let list=[...bookings];
+  if(q) list=list.filter(b=>b.name.includes(q)||b.contact?.includes(q)||b.phone?.includes(q)||b.date.includes(q)||b.service.includes(q));
+  list.sort((a,b)=>sort==="newest"?b.createdAt.localeCompare(a.createdAt):a.date.localeCompare(b.date)||a.slot.localeCompare(b.slot));
+  async function del(id){if(!confirm("確定刪除？"))return; await saveBookings(bookings.filter(b=>b.id!==id));}
+  return (
+    <div>
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="搜尋姓名、Email、電話、服務…" style={{maxWidth:280}}/>
+        <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}>
+          <option value="newest">最新建立</option>
+          <option value="date">依日期排序</option>
+        </select>
+        <span style={{fontSize:12,color:"var(--text3)"}}>共 {list.length} 筆</span>
+      </div>
+      {list.length===0?(
+        <div style={{textAlign:"center",padding:48,color:"var(--text3)"}}>尚無預約紀錄</div>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {list.map(b=>(
+            <div key={b.id} className="card">
+              <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
+                    <span style={{fontWeight:700,fontSize:15}}>{b.name}</span>
+                    <span className="tag tgr" style={{fontSize:10}}>已確認</span>
+                  </div>
+                  <div style={{fontSize:13,color:"var(--text2)",marginBottom:3}}>{b.service}</div>
+                  <div style={{fontSize:12,color:"var(--text3)"}}>
+                    {b.email&&<span>📧 {b.email}</span>}
+                    {b.phone&&<span>📞 {b.phone}</span>}
+                  </div>
+                  {b.note&&<div style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",marginTop:3}}>備註：{b.note}</div>}
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:16}}>${b.price.toLocaleString()}</div>
+                  <div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>{b.date} {b.slot}</div>
+                  <button className="btn bgh bsm" style={{fontSize:11,color:"var(--red)",borderColor:"rgba(240,112,112,0.3)",marginTop:8}} onClick={()=>del(b.id)}>刪除</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin: Services ──────────────────────────────────────────────────────────
+function AdminServices({ services, saveServices }) {
+  const [editing,setEditing]=useState(null); const [form,setForm]=useState({});
+  const [adding,setAdding]=useState(false); const [nw,setNw]=useState({name:"",desc:"",price:""});
+  async function saveEdit(id){await saveServices(services.map(s=>s.id===id?{...s,...form,price:parseInt(form.price)||0}:s));setEditing(null);}
+  async function toggle(id){await saveServices(services.map(s=>s.id===id?{...s,active:!s.active}:s));}
+  async function add(){if(!nw.name.trim())return alert("請填服務名稱");await saveServices([...services,{id:Date.now(),name:nw.name.trim(),desc:nw.desc.trim(),price:parseInt(nw.price)||0,active:true}]);setNw({name:"",desc:"",price:""});setAdding(false);}
+  async function del(id){if(!confirm("確定刪除？"))return;await saveServices(services.filter(s=>s.id!==id));}
+  return (
+    <div>
+      <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
+        {services.map(s=>(
+          <div key={s.id} className="card" style={{opacity:s.active?1:.5}}>
+            {editing===s.id?(
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="服務名稱"/>
+                <input value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="說明"/>
+                <input value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} type="number" placeholder="價格"/>
+                <div style={{display:"flex",gap:8}}><button className="btn bg bsm" onClick={()=>saveEdit(s.id)}>儲存</button><button className="btn bgh bsm" onClick={()=>setEditing(null)}>取消</button></div>
+              </div>
+            ):(
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                <div><div style={{fontWeight:600,fontSize:15}}>{s.name}</div>{s.desc&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>{s.desc}</div>}<div style={{color:"var(--gold-light)",fontWeight:700,marginTop:6}}>${s.price.toLocaleString()}</div></div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <button className="btn bgh bsm" onClick={()=>toggle(s.id)}>{s.active?"隱藏":"顯示"}</button>
+                  <button className="btn bg bsm" onClick={()=>{setEditing(s.id);setForm({name:s.name,desc:s.desc,price:s.price});}}>編輯</button>
+                  <button className="btn bgh bsm" style={{color:"var(--red)",borderColor:"rgba(240,112,112,0.3)"}} onClick={()=>del(s.id)}>刪除</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {adding?(
+        <div className="card" style={{marginBottom:12}}>
+          <div style={{fontSize:14,color:"var(--gold-light)",marginBottom:12,fontWeight:600}}>新增服務</div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <input value={nw.name} onChange={e=>setNw(f=>({...f,name:e.target.value}))} placeholder="服務名稱 *"/>
+            <input value={nw.desc} onChange={e=>setNw(f=>({...f,desc:e.target.value}))} placeholder="說明（選填）"/>
+            <input value={nw.price} onChange={e=>setNw(f=>({...f,price:e.target.value}))} type="number" placeholder="價格"/>
+            <div style={{display:"flex",gap:8}}><button className="btn bg bsm" onClick={add}>新增</button><button className="btn bgh bsm" onClick={()=>setAdding(false)}>取消</button></div>
+          </div>
+        </div>
+      ):(
+        <button className="btn bgh" style={{width:"100%"}} onClick={()=>setAdding(true)}>＋ 新增服務項目</button>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin: Quotas ────────────────────────────────────────────────────────────
+function AdminQuotas({ quotas, defQuota, saveQuotas, saveDefQuota, getQuota, getBooked, bookings }) {
+  const now=new Date();
+  const [year,setYear]=useState(now.getFullYear()); const [month,setMonth]=useState(now.getMonth()); const [date,setDate]=useState(null);
+  async function setSlotQ(d,slot,val){const q={...quotas};if(!q[d])q[d]={};q[d][slot]=Math.max(0,parseInt(val)||0);await saveQuotas(q);}
+  async function resetDay(d){if(!confirm(`重置 ${d} 的名額？`))return;const q={...quotas};delete q[d];await saveQuotas(q);}
+  return (
+    <div>
+      <div className="card cardh" style={{marginBottom:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+          <span style={{fontSize:14,color:"var(--text2)"}}>預設每時段名額：</span>
+          <input type="number" value={defQuota} min={0} max={20} onChange={e=>saveDefQuota(Math.max(0,parseInt(e.target.value)||0))} style={{width:80}}/>
+          <span style={{fontSize:12,color:"var(--text3)"}}>人</span>
+        </div>
+      </div>
+      <div className="card" style={{marginBottom:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button className="btn bgh bsm" onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);setDate(null);}}>‹</button>
+          <div style={{fontFamily:"'Noto Serif TC',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)",letterSpacing:3}}>{year} · {MONTHS_ZH[month]}</div>
+          <button className="btn bgh bsm" onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);setDate(null);}}>›</button>
+        </div>
+        <div className="cg">
+          {WEEKDAYS_ZH.map(w=><div key={w} className="cdh">{w}</div>)}
+          {Array.from({length:firstDayOfMonth(year,month)},(_,i)=><div key={"e"+i}/>)}
+          {Array.from({length:daysInMonth(year,month)},(_,i)=>{
+            const day=i+1;
+            const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+            const sel=date===ds; const hc=!!quotas[ds]; const cnt=bookings.filter(b=>b.date===ds).length;
+            return (
+              <div key={day} className={`day ${sel?"ds":""}`} onClick={()=>setDate(ds)}>
+                <span>{day}</span>
+                <div style={{display:"flex",gap:2,marginTop:2}}>
+                  {hc&&!sel&&<div className="dot" style={{background:"var(--gold-light)"}}/>}
+                  {cnt>0&&!sel&&<div className="dot" style={{background:"var(--green)"}}/>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {date&&(
+        <div className="fu">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:15,color:"var(--gold-light)",fontWeight:600}}>📍 {date} 各時段名額</div>
+            {quotas[date]&&<button className="btn bgh bsm" onClick={()=>resetDay(date)}>重置預設</button>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
+            {TIME_SLOTS.map(slot=>{
+              const b=getBooked(date,slot); const q=getQuota(date,slot);
+              return (
+                <div key={slot} className="card">
+                  <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>{slot}</div>
+                  <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>已預約 <span style={{color:b>0?"var(--green)":"var(--text2)"}}>{b}</span> / {q} 人</div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <input type="number" min={0} max={20} value={q} onChange={e=>setSlotQ(date,slot,e.target.value)} style={{width:64,padding:"7px 10px",textAlign:"center"}}/>
+                    <span style={{fontSize:11,color:"var(--text3)"}}>名額</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Shared ───────────────────────────────────────────────────────────────────
+function ST({ children }) {
+  return <h3 style={{fontFamily:"'Noto Serif TC',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)",marginBottom:18,letterSpacing:2}}>{children}</h3>;
+}
+function NR({ onBack, onNext, dis, nl }) {
+  return (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <button className="btn bgh" onClick={onBack}>← 返回</button>
+      <button className="btn bg" disabled={dis} onClick={onNext}>{nl}</button>
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
