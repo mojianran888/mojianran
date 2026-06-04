@@ -12,32 +12,31 @@
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useCallback } = React;
-    
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ADMIN_PW = "Mo8899";
 const LINE_URL = "https://lin.ee/pscg9XZ";
 const PERSONAL_LINE = "https://line.me/ti/p/7yJEvJdUY6";
-const ONLINE_SERVICE_IDS = [2, 8, 10, 11]; // 線上服務
+const ONLINE_SERVICE_IDS = [2, 8, 10, 11];
 const TIME_SLOTS = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"];
 const MONTHS_ZH = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
 const WEEKDAYS_ZH = ["日","一","二","三","四","五","六"];
-const THREE_HOUR_IDS = [7]; // 全台首創重建元辰宮
+const THREE_HOUR_IDS = [7];
 
 const DEFAULT_SERVICES = [
-  { id:7, name:"全台首創重建元辰宮", desc:"客製化心靈建構｜重建生命藍圖", price:6800, active:true },
-  { id:10, name:"元辰宮深化教準", desc:"30分鐘 / 線上｜必須觀過第一次元辰宮", price:1500, active:true },
-  { id:11, name:"觀看累世角色技能開啟連結天賦", desc:"線上 1小時", price:2500, active:true },
-  { id:9, name:"財富能量調整", desc:"每月農曆30日前報名，初一啟動，每月可報名一次", price:1111, active:true, discountPrice8:888 },
-  { id:2, name:"線上諮詢服務", desc:"15分鐘 / 線上", price:600, active:true },
-  { id:8, name:"線上諮詢服務", desc:"50分鐘 / 線上", price:1800, active:true },
-  { id:1, name:"現場諮詢能量調頻", desc:"40分鐘 / 現場", price:1800, active:true },
-  { id:3, name:"超渡祖先 亡靈", desc:"每位計費", price:8600, active:true },
-  { id:4, name:"超渡嬰靈", desc:"每位計費", price:2000, active:true },
-  { id:5, name:"現場手術台連線", desc:"小產手術現場聯線", price:3600, active:true },
+  { id:7,  name:"全台首創重建元辰宮",             desc:"客製化心靈建構｜重建生命藍圖",                         price:6800, active:true },
+  { id:10, name:"元辰宮深化教準",                 desc:"30分鐘 / 線上｜必須觀過第一次元辰宮",                  price:1500, active:true },
+  { id:11, name:"觀看累世角色技能開啟連結天賦",    desc:"線上 1小時",                                          price:2500, active:true },
+  { id:9,  name:"財富能量調整",                   desc:"每月農曆30日前報名，初一啟動，每月可報名一次",          price:1111, active:true },
+  { id:2,  name:"線上諮詢服務",                   desc:"15分鐘 / 線上",                                       price:600,  active:true },
+  { id:8,  name:"線上諮詢服務",                   desc:"50分鐘 / 線上",                                       price:1800, active:true },
+  { id:1,  name:"現場諮詢能量調頻",               desc:"40分鐘 / 現場",                                       price:1800, active:true },
+  { id:3,  name:"超渡祖先 亡靈",                  desc:"每位計費",                                            price:8600, active:true },
+  { id:4,  name:"超渡嬰靈",                       desc:"每位計費",                                            price:2000, active:true },
+  { id:5,  name:"現場手術台連線",                 desc:"小產手術現場聯線",                                    price:3600, active:true },
 ];
 
-const DEFAULT_NOTICES = ``; // 請至後台「通知設定」自行填寫注意事項
+const DEFAULT_NOTICES = ``;
 
 // ─── Google Sheets Sync ───────────────────────────────────────────────────────
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxQdIMD9QvAv9dqe7xIqR9LX6RwDAzAguqztHLaGurJewoNbvGr8DwW0Kf3iUwCyEZ3/exec";
@@ -61,7 +60,6 @@ async function gasPostSettings(rows) {
   } catch {}
 }
 
-// Local storage for admin-only config (emailCfg, address, notices)
 async function storageGet(key) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
   catch { return null; }
@@ -84,13 +82,11 @@ async function sendMakeWebhook(booking) {
         name: booking.name,
         phone: booking.phone || "",
         email: booking.email || "",
-        lineId: booking.lineId || "",
-        contact: booking.contact || "",
-        contactType: booking.contactType || "",
         service: booking.service,
         price: booking.price,
         date: booking.date,
         slot: booking.slot,
+        dateSlot: booking.date + " " + booking.slot,
         note: booking.note || "",
         created_at: booking.createdAt,
       }),
@@ -106,9 +102,8 @@ const daysInMonth = (y,m) => new Date(y,m+1,0).getDate();
 const firstDayOfMonth = (y,m) => new Date(y,m,1).getDay();
 const isPast = (y,m,d) => { const dt=new Date(y,m,d); dt.setHours(0,0,0,0); const t=new Date(); t.setHours(0,0,0,0); return dt<t; };
 
-// ─── EmailJS Sender ───────────────────────────────────────────────────────────
+// ─── EmailJS ──────────────────────────────────────────────────────────────────
 async function sendEmailJS(cfg, booking, notices, address) {
-  // cfg: { serviceId, templateId, publicKey }
   if (!cfg?.serviceId || !cfg?.templateId || !cfg?.publicKey) return { ok:false, reason:"未設定 EmailJS" };
   if (!booking.email) return { ok:false, reason:"客戶未填 Email" };
   try {
@@ -209,7 +204,6 @@ label{font-size:13px;color:var(--text2);display:block;margin-bottom:6px}
 .fu{animation:fadeUp .35s ease forwards}
 .spin{width:22px;height:22px;border:2px solid rgba(201,162,39,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
 .spinsm{width:13px;height:13px;border:2px solid rgba(255,255,255,0.2);border-top-color:currentColor;border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle}
-/* Email preview */
 .epreview{background:#fff;border-radius:12px;padding:24px;color:#333;font-size:14px;line-height:1.8}
 .epreview h2{color:#0d4a1f;font-family:'Noto Serif TC',serif;margin-bottom:8px}
 .epreview .ehdr{background:linear-gradient(135deg,#0d4a1f,#1a6b32);color:#fff;border-radius:8px;padding:20px;margin-bottom:20px;text-align:center}
@@ -233,7 +227,6 @@ function App() {
   const [adminAuth,setAdminAuth] = useState(false);
 
   useEffect(()=>{
-    // First load localStorage (fast), then render immediately
     (async()=>{
       try {
         const [ec,ad,nt] = await Promise.all([
@@ -245,20 +238,34 @@ function App() {
         if(ad) setAddress(ad);
         if(nt!==null) setNotices(nt);
       } catch(e) {}
-      setLoading(false); // Show page immediately
+      setLoading(false);
 
-      // Then load GAS in background (non-blocking)
       setTimeout(async()=>{
         try {
           const gas = await gasGet();
           if(gas) {
             if(gas.bookings && gas.bookings.length > 0) {
+              // 新欄位結構：A=id B=createdAt C=name D=phone E=service F=dateSlot G=price H=note
               const bkRows = gas.bookings.filter(r=>r[0]);
-              const bkObjects = bkRows.map(r=>({
-                id:r[0], name:r[1], phone:r[2], email:r[3], lineId:r[4],
-                service:r[5], price:Number(r[6])||0, date:String(r[7]||""), slot:String(r[8]||""), note:r[9]||"",
-                createdAt:r[10]||new Date().toISOString()
-              }));
+              const bkObjects = bkRows.map(r=>{
+                const dateSlot = String(r[5]||"");
+                const parts = dateSlot.split(" ");
+                const date = parts[0]||"";
+                const slot = parts[1]||"";
+                return {
+                  id: r[0],
+                  createdAt: r[1]||"",
+                  name: r[2]||"",
+                  phone: r[3]||"",
+                  email: r[4]||"",  // 相容舊資料（新資料此欄為service）
+                  service: r[4]||"",
+                  dateSlot: dateSlot,
+                  date: date,
+                  slot: slot,
+                  price: Number(r[6])||0,
+                  note: r[7]||"",
+                };
+              });
               if(bkObjects.length > 0) setBookings(bkObjects);
             }
             if(gas.settings && gas.settings.length > 0) {
@@ -291,9 +298,10 @@ function App() {
   const saveAddress  = useCallback(async v=>{setAddress(v); await storageSet("mjr:address",v);},[]);
   const saveNotices  = useCallback(async v=>{setNotices(v); await storageSet("mjr:notices",v);},[]);
 
+  // ── 時段封鎖邏輯：同時段只能一人 ──
+  const getBooked = (d,s) => bookings.filter(b=>b.date===d && b.slot===s).length;
   const getQuota  = (d,s) => quotas[d]?.[s] ?? defQuota;
-  const getBooked = (d,s) => bookings.filter(b=>b.date===d&&b.slot===s).length;
-  const isFull    = (d,s) => getBooked(d,s)>=getQuota(d,s);
+  const isFull    = (d,s) => getBooked(d,s) >= getQuota(d,s);
 
   if(loading) return (
     <div style={{minHeight:"100vh",background:"#060f0a",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
@@ -330,75 +338,61 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
   const [month,setMonth] = useState(now.getMonth());
   const [date,setDate]   = useState(null);
   const [slot,setSlot]   = useState(null);
-  const [form,setForm]   = useState({name:"",phone:"",email:"",lineId:"",note:"",_contactType:"email"});
-  const [saving,setSaving]       = useState(false);
+  const [form,setForm]   = useState({name:"",phone:"",email:"",note:""});
+  const [saving,setSaving]           = useState(false);
   const [emailResult,setEmailResult] = useState(null);
-  const [doneId,setDoneId]       = useState("");
-  const isMay = now.getMonth()===4;
-  const [isBirthday, setIsBirthday] = useState(false);
-  const [is8折, setIs8折] = useState(false);
+  const [doneId,setDoneId]           = useState("");
+  const [isBirthday,setIsBirthday]   = useState(false);
 
   const activeServices = services.filter(s=>s.active);
-  const discountRate = isBirthday ? 0.7 : (is8折 ? 0.8 : null);
-  const discountLabel = isBirthday ? "壽星7折" : "8折優惠";
+  const discountRate   = isBirthday ? 0.7 : null;
 
-  function isSunday(year, month, day){
-    return new Date(year, month, day).getDay() === 0;
-  }
+  function isSunday(y,m,d){ return new Date(y,m,d).getDay()===0; }
+  function isSaturday(y,m,d){ return new Date(y,m,d).getDay()===6; }
 
-  // Three-phase cutoff: morning→afternoon today, afternoon→morning tomorrow, evening→afternoon tomorrow
+  // 三段式截止：上午→當天17起，下午→隔天10起，晚上→隔天13起
   function getEarliestBookable() {
-    const now = new Date();
-    const h = now.getHours();
-    const td = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
-    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
-    const tmr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
-    if(h < 13)  return { date: td,  minSlot: "17:00" }; // 上午 → 當天晚上17:00起
-    if(h < 17)  return { date: tmr, minSlot: "10:00" }; // 下午 → 隔天上午10:00起
-    return       { date: tmr, minSlot: "13:00" };        // 晚上 → 隔天下午13:00起
-  }
-
-  function isSaturday(year, month, day){
-    return new Date(year, month, day).getDay() === 6;
+    const now=new Date(); const h=now.getHours();
+    const td=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+    const tomorrow=new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
+    const tmr=`${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
+    if(h<13)  return { date:td,  minSlot:"17:00" };
+    if(h<17)  return { date:tmr, minSlot:"10:00" };
+    return           { date:tmr, minSlot:"13:00" };
   }
 
   function hasOpenSlot(day){
-    if(isSunday(year, month, day)) return false;
+    if(isSunday(year,month,day)) return false;
     const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-    const earliest = getEarliestBookable();
-    if(ds < earliest.date) return false;
+    const earliest=getEarliestBookable();
+    if(ds<earliest.date) return false;
     return TIME_SLOTS.some(s=>{
       if(isSaturday(year,month,day) && s==="19:00") return false;
-      if(ds === earliest.date && s < earliest.minSlot) return false;
+      if(ds===earliest.date && s<earliest.minSlot) return false;
       return !isFull(ds,s);
     });
   }
 
-  function isSlotBlocked(slot, date) {
-    // For 3hr services, check if any of the previous 2 slots are booked with 3hr service
-    if (!svc || !THREE_HOUR_IDS.includes(svc.id)) return false;
-    const idx = TIME_SLOTS.indexOf(slot);
-    // Block last slot (index 6 = 19:00 is ok, but if svc is 3hr, we still allow 19:00)
-    // Check if this slot would be blocked by a previous 3hr booking on same date
-    for (let i = Math.max(0, idx-2); i < idx; i++) {
-      const prevSlot = TIME_SLOTS[i];
-      const blockedByBooking = bookings.some(b => b.date===date && b.slot===prevSlot && THREE_HOUR_IDS.includes(
+  function isSlotBlocked(slot,date){
+    if(!svc||!THREE_HOUR_IDS.includes(svc.id)) return false;
+    const idx=TIME_SLOTS.indexOf(slot);
+    for(let i=Math.max(0,idx-2);i<idx;i++){
+      const prevSlot=TIME_SLOTS[i];
+      const blockedByBooking=bookings.some(b=>b.date===date&&b.slot===prevSlot&&THREE_HOUR_IDS.includes(
         DEFAULT_SERVICES.find(sv=>sv.name===b.service)?.id
       ));
-      if (blockedByBooking) return true;
+      if(blockedByBooking) return true;
     }
     return false;
   }
 
-  function isSlotAvailableFor3hr(slot, dateStr) {
-    // For 3hr service, also need next 2 slots to not be full
-    if (!svc || !THREE_HOUR_IDS.includes(svc.id)) return true;
-    const idx = TIME_SLOTS.indexOf(slot);
-    // Check next 2 slots exist and are not full
-    for (let i = 1; i <= 2; i++) {
-      if (idx + i < TIME_SLOTS.length) {
-        const nextSlot = TIME_SLOTS[idx + i];
-        if (isFull(dateStr, nextSlot)) return false;
+  function isSlotAvailableFor3hr(slot,dateStr){
+    if(!svc||!THREE_HOUR_IDS.includes(svc.id)) return true;
+    const idx=TIME_SLOTS.indexOf(slot);
+    for(let i=1;i<=2;i++){
+      if(idx+i<TIME_SLOTS.length){
+        const nextSlot=TIME_SLOTS[idx+i];
+        if(isFull(dateStr,nextSlot)) return false;
       }
     }
     return true;
@@ -406,30 +400,29 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
 
   async function handleBook(){
     if(!form.name.trim()||!form.phone.trim()){alert("請填寫姓名與電話");return;}
-    if(!form.email.trim()&&!form.lineId.trim()){alert("請填寫 Email 或 LINE ID（至少一項）");return;}
     setSaving(true);
-    const booking = {
+    const dateSlot = date + " " + slot;
+    const booking={
       id:`BK${Date.now()}`,
-      name:form.name.trim(),
+      createdAt: new Date().toISOString(),
+      name: form.name.trim(),
       phone: form.phone.trim(),
       email: form.email.trim(),
-      lineId: form.lineId.trim(),
-      contact: form.email.trim() || form.phone.trim(),
-      contactType: form.email.trim() ? "email" : "phone",
-      note:form.note.trim(),
-      date, slot, service:svc.name, price: discountRate ? Math.round(svc.price * discountRate) : svc.price,
-      originalPrice: svc.price, discount: discountRate ? discountLabel : null,
-      createdAt:new Date().toISOString(), status:"confirmed",
+      note: form.note.trim(),
+      date, slot,
+      dateSlot,
+      service: svc.name,
+      price: discountRate ? Math.round(svc.price*discountRate) : svc.price,
+      originalPrice: svc.price,
+      discount: discountRate ? "壽星7折" : null,
+      status:"confirmed",
     };
     await saveBookings([...bookings, booking]);
-    // Send to Google Sheets via GAS
     gasPostBooking(booking);
-    // Send Make.com webhook
     sendMakeWebhook(booking);
-    // Send email if email provided
-    let eResult = null;
+    let eResult=null;
     if(booking.email){
-      eResult = await sendEmailJS(emailCfg, booking, notices, address);
+      eResult=await sendEmailJS(emailCfg,booking,notices,address);
     }
     setEmailResult(eResult);
     setDoneId(booking.id);
@@ -441,27 +434,19 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
 
   return (
     <div className="fu">
-      {/* Promos */}
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+      {/* 壽星優惠 */}
+      <div style={{marginBottom:16}}>
         <button
-          onClick={()=>{setIs8折(b=>!b); if(!is8折) setIsBirthday(false);}}
-          style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:"2px solid",transition:"all .2s",textAlign:"left",
-            background: is8折?"linear-gradient(135deg,var(--gold),var(--gold-light))":"transparent",
-            borderColor: is8折?"var(--gold-light)":"rgba(201,162,39,0.4)",
-            color: is8折?"#1a0f00":"var(--gold-light)"}}>
-          🌟 {is8折 ? "✓ 8折優惠已套用！" : "即日起至5月31日止，預約享8折優惠，開放預約全年檔期，名額有限。（點我套用）"}
-        </button>
-        <button
-          onClick={()=>{setIsBirthday(b=>!b); if(!isBirthday) setIs8折(false);}}
+          onClick={()=>setIsBirthday(b=>!b)}
           style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:"2px solid",transition:"all .2s",
             background: isBirthday?"linear-gradient(135deg,#e87040,#f0a060)":"transparent",
             borderColor: isBirthday?"#f0a060":"rgba(240,160,96,0.4)",
             color: isBirthday?"#fff":"#f0a060"}}>
-          🎂 {isBirthday ? "✓ 壽星7折已套用！" : "我是本月壽星（點我享7折）"}
+          🎂 {isBirthday?"✓ 壽星7折已套用！":"我是本月壽星（點我享7折）"}
         </button>
       </div>
 
-      {/* Step bar */}
+      {/* 步驟條 */}
       <div className="steps">
         {steps.map((s,i)=>{
           const done=step>s.n; const act=step===s.n;
@@ -477,7 +462,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
         })}
       </div>
 
-      {/* Step 1: Service */}
+      {/* Step 1: 選服務 */}
       {step===1&&(
         <div className="fu">
           <ST>☆ 選擇服務項目</ST>
@@ -491,10 +476,10 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
                 </div>
                 <div style={{textAlign:"right",flexShrink:0}}>
                   <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:17}}>${s.price.toLocaleString()}</div>
-                  {discountRate && (
+                  {discountRate&&(
                     <div style={{marginTop:4}}>
-                      <div style={{fontSize:11,color:isBirthday?"#f0a060":"var(--green)"}}>{discountLabel}</div>
-                      <div style={{color:isBirthday?"#f0a060":"var(--green)",fontWeight:700,fontSize:15}}>${(is8折 && s.discountPrice8) ? s.discountPrice8.toLocaleString() : Math.round(s.price*discountRate).toLocaleString()}</div>
+                      <div style={{fontSize:11,color:"#f0a060"}}>壽星7折</div>
+                      <div style={{color:"#f0a060",fontWeight:700,fontSize:15}}>${Math.round(s.price*discountRate).toLocaleString()}</div>
                     </div>
                   )}
                 </div>
@@ -505,7 +490,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
         </div>
       )}
 
-      {/* Step 2: Date */}
+      {/* Step 2: 選日期 */}
       {step===2&&(
         <div className="fu">
           <ST>🗓️ 選擇日期</ST>
@@ -542,7 +527,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
         </div>
       )}
 
-      {/* Step 3: Slot */}
+      {/* Step 3: 選時段 */}
       {step===3&&(
         <div className="fu">
           <ST>🕐 選擇時段</ST>
@@ -550,24 +535,23 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
           <div className="sgrid" style={{marginBottom:22}}>
             {TIME_SLOTS.map((s,idx)=>{
               const b=getBooked(date,s); const q=getQuota(date,s); const full=b>=q;
-              const is3hr = svc && THREE_HOUR_IDS.includes(svc.id);
-              const blocked = isSlotBlocked(s, date);
-              const notEnoughSlots = is3hr && idx > TIME_SLOTS.length - 3;
-              const no3hrSpace = is3hr && !isSlotAvailableFor3hr(s, date);
-              const dateObj = date ? new Date(date) : null;
-              const isSat1900 = dateObj && dateObj.getDay()===6 && s==="19:00";
-              const isPastSlot = date===todayStr() && (()=>{const [h,m]=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),h,m)<=t;})();
-              const earliest = getEarliestBookable();
-              const isTooEarly = date < earliest.date || (date === earliest.date && s < earliest.minSlot);
-              // 直接隱藏已過和不符合時段
-              if(isPastSlot || isTooEarly || isSat1900) return null;
-              const disabled = full || blocked || notEnoughSlots || no3hrSpace;
-              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
+              const is3hr=svc&&THREE_HOUR_IDS.includes(svc.id);
+              const blocked=isSlotBlocked(s,date);
+              const notEnoughSlots=is3hr&&idx>TIME_SLOTS.length-3;
+              const no3hrSpace=is3hr&&!isSlotAvailableFor3hr(s,date);
+              const dateObj=date?new Date(date):null;
+              const isSat1900=dateObj&&dateObj.getDay()===6&&s==="19:00";
+              const isPastSlot=date===todayStr()&&(()=>{const [h,m]=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),h,m)<=t;})();
+              const earliest=getEarliestBookable();
+              const isTooEarly=date<earliest.date||(date===earliest.date&&s<earliest.minSlot);
+              if(isPastSlot||isTooEarly||isSat1900) return null;
+              const disabled=full||blocked||notEnoughSlots||no3hrSpace;
+              const reason=full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
               return (
                 <button key={s} className={`slot ${slot===s?"ss":""}`} disabled={disabled} onClick={()=>setSlot(s)}>
                   <div style={{fontWeight:600}}>{s}</div>
                   <div style={{fontSize:10,marginTop:3,color:disabled?"var(--red)":"var(--green)"}}>
-                    {disabled ? (reason||"不可選") : `剩 ${q-b} 名`}
+                    {disabled?(reason||"不可選"):`剩 ${q-b} 名`}
                   </div>
                 </button>
               );
@@ -577,20 +561,19 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
         </div>
       )}
 
-      {/* Step 4: Form */}
+      {/* Step 4: 填資料 */}
       {step===4&&(
         <div className="fu">
           <ST>✍️ 填寫預約資料</ST>
-          {/* Summary */}
+          {/* 摘要 */}
           <div className="card cardh" style={{marginBottom:20}}>
             <div style={{fontSize:12,color:"var(--text3)",marginBottom:10}}>預約摘要</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
               <span className="tag to">📋 {svc?.name}</span>
               {discountRate
-                ? <span className="tag to">💰 <s style={{opacity:.5}}>${svc?.price.toLocaleString()}</s> → ${Math.round((svc?.price||0)*discountRate).toLocaleString()} <span style={{color:isBirthday?"#f0a060":"var(--green)",fontSize:10}}>({discountLabel})</span></span>
+                ? <span className="tag to">💰 <s style={{opacity:.5}}>${svc?.price.toLocaleString()}</s> → ${Math.round((svc?.price||0)*discountRate).toLocaleString()} <span style={{color:"#f0a060",fontSize:10}}>（壽星7折）</span></span>
                 : <span className="tag to">💰 ${svc?.price.toLocaleString()}</span>}
-              <span className="tag to">📅 {date}</span>
-              <span className="tag to">🕐 {slot}</span>
+              <span className="tag to">📅 {date} {slot}</span>
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:16,marginBottom:20}}>
@@ -599,75 +582,58 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="請輸入您的姓名"/>
             </div>
             <div>
-              <label>📞 電話 <span style={{color:"var(--red)"}}>*</span></label>
+              <label>📞 聯絡電話 <span style={{color:"var(--red)"}}>*</span></label>
               <input type="tel" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="請輸入您的手機號碼"/>
             </div>
             <div>
-              <label>📧 聯絡方式 <span style={{color:"var(--red)"}}>*</span> <span style={{color:"var(--gold-light)",fontSize:11}}>（擇一填寫）</span></label>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <button className={`btab bsm ${!form.lineId&&form.email!==undefined&&form._contactType!=="line"?"on":""}`} onClick={()=>setForm(f=>({...f,_contactType:"email",lineId:""}))}>📧 Email</button>
-                <button className={`btab bsm ${form._contactType==="line"?"on":""}`} onClick={()=>setForm(f=>({...f,_contactType:"line",email:""}))}>💬 LINE ID</button>
-              </div>
-              {form._contactType!=="line"?(
-                <>
-                  <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="請輸入 Email（填寫後系統將自動寄送確認信）"/>
-                  {form.email&&<div style={{fontSize:11,color:"var(--gold-light)",marginTop:6}}>✉️ 預約完成後系統將自動寄送確認信，內含注意事項與地址</div>}
-                </>
-              ):(
-                <input value={form.lineId} onChange={e=>setForm(f=>({...f,lineId:e.target.value}))} placeholder="請輸入您的 LINE ID"/>
-              )}
+              <label>📧 Email <span style={{color:"var(--text3)",fontSize:11}}>（選填，填寫後系統將自動寄送確認信）</span></label>
+              <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="選填"/>
             </div>
             <div>
-              <label>💬 備註（選填）</label>
+              <label>💬 備註 <span style={{color:"var(--text3)",fontSize:11}}>（選填）</span></label>
               <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="有任何想提前說明的可以寫在這裡" rows={3} style={{resize:"vertical"}}/>
             </div>
           </div>
           <div style={{padding:"13px 16px",borderRadius:10,background:"rgba(201,162,39,0.06)",border:"1px solid rgba(201,162,39,0.2)",fontSize:12,color:"var(--text2)",lineHeight:1.9,marginBottom:20}}>
             ⚠️ 收到確認通知才算完成預約喔！<br/>期待與您相見 🌙😊
           </div>
-          <NR onBack={()=>setStep(3)} onNext={handleBook} dis={saving||!form.name.trim()||!form.phone.trim()||(!form.email.trim()&&!form.lineId.trim())} nl={saving?<>送出中… <span className="spinsm"/></>:"確認送出 ✨"}/>
+          <NR onBack={()=>setStep(3)} onNext={handleBook} dis={saving||!form.name.trim()||!form.phone.trim()} nl={saving?<>送出中… <span className="spinsm"/></>:"確認送出 ✨"}/>
         </div>
       )}
 
-      {/* Step 5: Done */}
+      {/* Step 5: 完成 */}
       {step===5&&(
         <div className="fu" style={{textAlign:"center",padding:"44px 0"}}>
           <div style={{fontSize:60,marginBottom:16,filter:"drop-shadow(0 0 20px rgba(201,162,39,0.4))"}}>🌙</div>
           <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:24,color:"var(--gold-light)",letterSpacing:3,marginBottom:6}}>預約資料已送出</h2>
           <div style={{fontSize:13,color:"var(--text3)",marginBottom:24}}>預約編號：{doneId}</div>
 
-          {/* Booking summary */}
           <div className="card cardh" style={{maxWidth:360,margin:"0 auto 20px",textAlign:"left"}}>
             <div style={{display:"flex",flexDirection:"column",gap:9,fontSize:14,color:"var(--text2)"}}>
               <div>📋 {svc?.name}</div>
               <div>📅 {date} &nbsp;🕐 {slot}</div>
               <div>👤 {form.name}</div>
-              <div>{form.email?"📧 "+form.email:form.lineId?"💬 "+form.lineId:"📞 "+form.phone}</div>
-              <div>💰 ${svc?.price.toLocaleString()}</div>
+              <div>📞 {form.phone}</div>
+              {form.email&&<div>📧 {form.email}</div>}
+              <div>💰 ${discountRate?Math.round((svc?.price||0)*discountRate).toLocaleString():(svc?.price||0).toLocaleString()}</div>
             </div>
           </div>
 
-          {/* Email notification status */}
+          {/* Email 通知狀態 */}
           {form.email && emailResult && (
             <div className={`nbox ${emailResult.ok?"nok":"nfail"}`} style={{maxWidth:360,margin:"0 auto 16px"}}>
               {emailResult.ok
-                ? <><span>✅</span><span>確認信已寄出！請查收您的信箱（包含注意事項與地址）</span></>
-                : <><span>⚠️</span><span>Email 發送失敗（{emailResult.reason}）。請透過 LINE 聯繫老師確認。</span></>}
+                ?<><span>✅</span><span>確認信已寄出！請查收您的信箱。</span></>
+                :<><span>⚠️</span><span>Email 發送失敗（{emailResult.reason}）。請透過 LINE 聯繫老師確認。</span></>}
             </div>
           )}
-          {form.email && !emailResult && (
-            <div className="nbox nwarn" style={{maxWidth:360,margin:"0 auto 16px"}}>
-              <span>ℹ️</span><span>Email 通知尚未設定，請透過 LINE 與老師確認預約。</span>
-            </div>
-          )}
-          {!form.email && (
+          {!form.email&&(
             <div className="nbox ninfo" style={{maxWidth:360,margin:"0 auto 16px"}}>
               <span>📞</span><span>老師將透過 LINE 官方帳號與您確認，請注意訊息通知。</span>
             </div>
           )}
 
-          {/* Inline notices & address on done page */}
-          {(notices||address) && (
+          {(notices||address)&&(
             <div style={{maxWidth:360,margin:"0 auto 20px",textAlign:"left"}}>
               {notices&&(
                 <div style={{background:"rgba(201,162,39,0.07)",border:"1px solid rgba(201,162,39,0.2)",borderRadius:12,padding:16,marginBottom:12}}>
@@ -694,7 +660,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
             <a href={PERSONAL_LINE} target="_blank" rel="noreferrer" style={{color:"var(--line)",wordBreak:"break-all"}}>{PERSONAL_LINE}</a>
           </div>
           <div style={{marginTop:20}}>
-            <button className="btn bgh" onClick={()=>{setStep(1);setSvc(null);setDate(null);setSlot(null);setForm({name:"",phone:"",email:"",lineId:"",note:"",_contactType:"email"});setEmailResult(null);}}>再次預約</button>
+            <button className="btn bgh" onClick={()=>{setStep(1);setSvc(null);setDate(null);setSlot(null);setForm({name:"",phone:"",email:"",note:""});setEmailResult(null);}}>再次預約</button>
           </div>
         </div>
       )}
@@ -713,11 +679,14 @@ function AdminView({ services, bookings, quotas, defQuota, emailCfg, address, no
       <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:20,color:"var(--gold-light)",marginBottom:20,letterSpacing:2}}>後台管理登入</h2>
       <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="請輸入管理密碼" style={{marginBottom:14,textAlign:"center"}} autoCorrect="off" autoCapitalize="off" autoComplete="off" onKeyDown={e=>{if(e.key==="Enter"){if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}}/>
       <button className="btn bg" style={{width:"100%"}} onClick={()=>{if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}>登入</button>
-      <div style={{marginTop:10,fontSize:11,color:"var(--text3)"}}>密碼：Mo8899</div>
     </div>
   );
 
-  const stats={total:bookings.length,revenue:bookings.reduce((a,b)=>a+b.price,0),today:bookings.filter(b=>b.date===todayStr()).length};
+  const stats={
+    total: bookings.length,
+    revenue: bookings.reduce((a,b)=>a+b.price,0),
+    today: bookings.filter(b=>b.date===todayStr()).length
+  };
 
   return (
     <div className="fu">
@@ -725,7 +694,6 @@ function AdminView({ services, bookings, quotas, defQuota, emailCfg, address, no
         <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:20,color:"var(--gold-light)",letterSpacing:2}}>⚙️ 後台管理</h2>
         <button className="btn bgh bsm" onClick={()=>setAdminAuth(false)}>登出</button>
       </div>
-      {/* Stats */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12,marginBottom:24}}>
         {[{l:"總預約數",v:stats.total+" 筆",i:"📋"},{l:"今日預約",v:stats.today+" 筆",i:"📅"},{l:"總金額",v:"$"+stats.revenue.toLocaleString(),i:"💰"}].map(s=>(
           <div key={s.l} className="card cardh" style={{textAlign:"center"}}>
@@ -735,7 +703,6 @@ function AdminView({ services, bookings, quotas, defQuota, emailCfg, address, no
           </div>
         ))}
       </div>
-      {/* Tabs */}
       <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
         {[["bookings","📋 預約紀錄"],["services","💼 服務管理"],["quotas","📊 名額設定"],["notify","✉️ 通知設定"]].map(([t,l])=>(
           <button key={t} className={`btab ${tab===t?"on":""}`} onClick={()=>setTab(t)}>{l}</button>
@@ -749,80 +716,52 @@ function AdminView({ services, bookings, quotas, defQuota, emailCfg, address, no
   );
 }
 
-// ─── Admin: Notify Settings ───────────────────────────────────────────────────
+// ─── Admin: Notify ────────────────────────────────────────────────────────────
 function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, saveNotices }) {
   const [cfg,setCfg]   = useState(emailCfg);
   const [addr,setAddr] = useState(address);
   const [ntc,setNtc]   = useState(notices);
-  const [testing,setTesting] = useState(false);
+  const [testing,setTesting]     = useState(false);
   const [testResult,setTestResult] = useState(null);
-  const [saved,setSaved]     = useState(false);
+  const [saved,setSaved]         = useState(false);
   const [previewEmail,setPreviewEmail] = useState("");
 
   async function handleSave(){
-    await Promise.all([saveEmailCfg(cfg), saveAddress(addr), saveNotices(ntc)]);
+    await Promise.all([saveEmailCfg(cfg),saveAddress(addr),saveNotices(ntc)]);
     setSaved(true); setTimeout(()=>setSaved(false),2000);
   }
-
   async function handleTest(){
     if(!previewEmail){alert("請填寫測試用 Email");return;}
     if(!cfg.serviceId||!cfg.templateId||!cfg.publicKey){alert("請先填寫 EmailJS 設定");return;}
     setTesting(true); setTestResult(null);
     const fakeBooking={id:"BK_TEST",name:"測試客戶",email:previewEmail,service:"現場諮詢能量調頻",price:1800,date:todayStr(),slot:"10:00"};
-    const r = await sendEmailJS(cfg, fakeBooking, ntc, addr);
+    const r=await sendEmailJS(cfg,fakeBooking,ntc,addr);
     setTestResult(r); setTesting(false);
   }
 
   return (
     <div>
-      {/* Address & Notices */}
       <div style={{marginBottom:28}}>
         <div style={{fontSize:16,fontWeight:700,color:"var(--gold-light)",marginBottom:16,fontFamily:"'Noto Serif TC',serif"}}>📍 地址與注意事項</div>
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div>
-            <label>📍 諮詢地址（預約完成頁面與 Email 都會顯示）</label>
-            <input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="例：台中市西區 ○○路 ○○號（請填寫完整地址）"/>
+            <label>📍 諮詢地址</label>
+            <input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="例：台中市西區 ○○路 ○○號"/>
           </div>
           <div>
-            <label>📋 注意事項（預約完成頁面與 Email 都會顯示）</label>
+            <label>📋 注意事項</label>
             <textarea value={ntc} onChange={e=>setNtc(e.target.value)} rows={7} style={{resize:"vertical"}} placeholder="每行一條注意事項"/>
-            <div style={{fontSize:11,color:"var(--text3)",marginTop:5}}>每行一條，客人預約完成後會在頁面上直接看到，也會在 Email 中收到</div>
           </div>
         </div>
       </div>
-
       <div className="divr"/>
-
-      {/* EmailJS */}
       <div style={{marginBottom:20}}>
-        <div style={{fontSize:16,fontWeight:700,color:"var(--gold-light)",marginBottom:6,fontFamily:"'Noto Serif TC',serif"}}>✉️ Email 自動通知（EmailJS）</div>
-        <div style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.8}}>
-          客戶填寫 Email 預約後，系統自動寄出確認信（含注意事項＋地址）。<br/>
-          需先到 <a href="https://emailjs.com" target="_blank" rel="noreferrer" style={{color:"var(--gold-light)"}}>emailjs.com</a> 免費註冊並取得以下三組金鑰。
-        </div>
-
-        {/* Setup steps */}
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-          {[
-            {n:"1",t:"註冊 EmailJS 免費帳號",d:"前往 emailjs.com → Sign Up（免費 200 封/月）"},
-            {n:"2",t:"建立 Email Service",d:"Add New Service → 連接 Gmail 或其他信箱 → 複製 Service ID"},
-            {n:"3",t:"建立 Email Template",d:"Email Templates → Create New → 貼上下方模板內容 → 複製 Template ID"},
-            {n:"4",t:"取得 Public Key",d:"Account → General → Public Key"},
-            {n:"5",t:"填入下方並儲存",d:"三組金鑰都填好後點「儲存設定」"},
-          ].map(s=>(
-            <div key={s.n} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-              <div style={{width:24,height:24,borderRadius:"50%",background:"linear-gradient(135deg,var(--gold),var(--gold-light))",color:"#1a0f00",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>{s.n}</div>
-              <div><div style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.t}</div><div style={{fontSize:12,color:"var(--text3)"}}>{s.d}</div></div>
-            </div>
-          ))}
-        </div>
-
+        <div style={{fontSize:16,fontWeight:700,color:"var(--gold-light)",marginBottom:16,fontFamily:"'Noto Serif TC',serif"}}>✉️ Email 自動通知（EmailJS）</div>
         <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
           <div><label>Service ID</label><input value={cfg.serviceId} onChange={e=>setCfg(c=>({...c,serviceId:e.target.value}))} placeholder="service_xxxxxxx"/></div>
           <div><label>Template ID</label><input value={cfg.templateId} onChange={e=>setCfg(c=>({...c,templateId:e.target.value}))} placeholder="template_xxxxxxx"/></div>
           <div><label>Public Key</label><input value={cfg.publicKey} onChange={e=>setCfg(c=>({...c,publicKey:e.target.value}))} placeholder="xxxxxxxxxxxxxxx"/></div>
         </div>
-
         <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
           <button className="btn bg" onClick={handleSave}>{saved?"✅ 已儲存":"儲存設定"}</button>
           <div style={{display:"flex",gap:8,alignItems:"center",flex:1,minWidth:200}}>
@@ -832,45 +771,11 @@ function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, sa
             </button>
           </div>
         </div>
-
         {testResult&&(
-          <div className={`nbox ${testResult.ok?"nok":"nfail"}`} style={{marginBottom:16}}>
-            {testResult.ok?<><span>✅</span><span>測試信寄出成功！請查收信箱確認樣式。</span></>:<><span>❌</span><span>發送失敗：{testResult.reason}。請確認金鑰正確。</span></>}
+          <div className={`nbox ${testResult.ok?"nok":"nfail"}`}>
+            {testResult.ok?<><span>✅</span><span>測試信寄出成功！</span></>:<><span>❌</span><span>發送失敗：{testResult.reason}</span></>}
           </div>
         )}
-      </div>
-
-      <div className="divr"/>
-
-      {/* Email Template */}
-      <div>
-        <div style={{fontSize:15,fontWeight:700,color:"var(--gold-light)",marginBottom:12,fontFamily:"'Noto Serif TC',serif"}}>📄 EmailJS Template 內容（複製貼到 EmailJS）</div>
-        <div style={{fontSize:12,color:"var(--text3)",marginBottom:12}}>在 EmailJS → Email Templates → 選你的 template → Content 貼入以下內容：</div>
-        <div style={{background:"rgba(0,0,0,0.35)",borderRadius:12,padding:16,fontSize:12,fontFamily:"monospace",color:"var(--text2)",lineHeight:2,border:"1px solid rgba(201,162,39,0.2)",whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
-          {"Subject: 【莫江然·意識空間】預約確認通知 🌙\n\n親愛的 {{to_name}} 您好，\n\n感謝您預約莫江然老師的服務，以下是您的預約資訊：\n\n━━━━━━━━━━━━━━━━━━\n📋 服務項目：{{service}}\n📅 預約日期：{{date}}\n🕐 預約時間：{{slot}}\n💰 服務費用：${{price}}\n🔖 預約編號：{{booking_id}}\n━━━━━━━━━━━━━━━━━━\n\n📍 諮詢地址：\n{{address}}\n\n📋 注意事項：\n{{notices}}\n\n━━━━━━━━━━━━━━━━━━\n⚠️ 如需取消或更改，請透過 LINE 官方帳號通知老師：\n{{line_url}}\n\n期待與您相見 🌙✨\n莫江然 · 意識空間"}
-        </div>
-
-        {/* Email Preview */}
-        <div style={{marginTop:20}}>
-          <div style={{fontSize:14,fontWeight:700,color:"var(--gold-light)",marginBottom:12}}>👁️ 客戶收到的 Email 預覽</div>
-          <div className="epreview">
-            <div className="ehdr">
-              <div style={{fontSize:11,letterSpacing:3,opacity:.8,marginBottom:6}}>莫江然 · 意識空間</div>
-              <h2 style={{fontSize:20,color:"#fff",marginBottom:0}}>預約確認通知 🌙</h2>
-            </div>
-            <p style={{marginBottom:16,color:"#555"}}>親愛的 <strong>（客戶姓名）</strong> 您好，感謝您預約莫江然老師的服務。</p>
-            {[["📋 服務項目","現場諮詢能量調頻"],["📅 預約日期","（客戶選擇的日期）"],["🕐 預約時間","（客戶選擇的時段）"],["💰 服務費用","$1,800"],["🔖 預約編號","BK_XXXXXXXXX"]].map(([l,v])=>(
-              <div key={l} className="erow"><div className="elabel">{l}</div><div>{v}</div></div>
-            ))}
-            {addr&&<><div style={{marginTop:16,fontWeight:600,color:"#333"}}>📍 諮詢地址</div><div style={{marginTop:6,color:"#555"}}>{addr}</div></>}
-            {ntc&&<><div style={{marginTop:16,fontWeight:600,color:"#333"}}>📋 注意事項</div><div className="enotice">{ntc}</div></>}
-            <div className="efooter">
-              <p>如需取消或更改，請透過 LINE 官方帳號通知老師</p>
-              <p style={{marginTop:4,color:"var(--line)"}}>💬 LINE：{LINE_URL}</p>
-              <p style={{marginTop:12}}>莫江然 · 意識空間 ✨</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -878,16 +783,16 @@ function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, sa
 
 // ─── Admin: Bookings ──────────────────────────────────────────────────────────
 function AdminBookings({ bookings, saveBookings }) {
-  const [q,setQ]     = useState("");
+  const [q,setQ]       = useState("");
   const [sort,setSort] = useState("newest");
   let list=[...bookings];
-  if(q) list=list.filter(b=>b.name.includes(q)||b.contact?.includes(q)||b.phone?.includes(q)||b.date.includes(q)||b.service.includes(q));
+  if(q) list=list.filter(b=>b.name?.includes(q)||b.phone?.includes(q)||b.date?.includes(q)||b.service?.includes(q));
   list.sort((a,b)=>sort==="newest"?(b.createdAt||"").localeCompare(a.createdAt||""):(a.date||"").localeCompare(b.date||"")||(a.slot||"").localeCompare(b.slot||""));
   async function del(id){if(!confirm("確定刪除？"))return; await saveBookings(bookings.filter(b=>b.id!==id));}
   return (
     <div>
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="搜尋姓名、Email、電話、服務…" style={{maxWidth:280}}/>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="搜尋姓名、電話、服務…" style={{maxWidth:280}}/>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}>
           <option value="newest">最新建立</option>
           <option value="date">依日期排序</option>
@@ -908,8 +813,8 @@ function AdminBookings({ bookings, saveBookings }) {
                   </div>
                   <div style={{fontSize:13,color:"var(--text2)",marginBottom:3}}>{b.service}</div>
                   <div style={{fontSize:12,color:"var(--text3)"}}>
-                    {b.email&&<span>📧 {b.email}</span>}
                     {b.phone&&<span>📞 {b.phone}</span>}
+                    {b.email&&<span style={{marginLeft:8}}>📧 {b.email}</span>}
                   </div>
                   {b.note&&<div style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",marginTop:3}}>備註：{b.note}</div>}
                 </div>
@@ -1056,7 +961,6 @@ function NR({ onBack, onNext, dis, nl }) {
     </div>
   );
 }
-
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(React.createElement(App));
