@@ -4,8 +4,8 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>莫江然 · 意識空間預約系統</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
@@ -245,7 +245,6 @@ function App() {
           const gas = await gasGet();
           if(gas) {
             if(gas.bookings && gas.bookings.length > 0) {
-              // 新欄位結構：A=id B=createdAt C=name D=phone E=service F=dateSlot G=price H=note
               const bkRows = gas.bookings.filter(r=>r[0]);
               const bkObjects = bkRows.map(r=>{
                 const dateSlot = String(r[5]||"");
@@ -257,7 +256,7 @@ function App() {
                   createdAt: r[1]||"",
                   name: r[2]||"",
                   phone: r[3]||"",
-                  email: r[4]||"",  // 相容舊資料（新資料此欄為service）
+                  email: "",
                   service: r[4]||"",
                   dateSlot: dateSlot,
                   date: date,
@@ -298,7 +297,6 @@ function App() {
   const saveAddress  = useCallback(async v=>{setAddress(v); await storageSet("mjr:address",v);},[]);
   const saveNotices  = useCallback(async v=>{setNotices(v); await storageSet("mjr:notices",v);},[]);
 
-  // ── 時段封鎖邏輯：同時段只能一人 ──
   const getBooked = (d,s) => bookings.filter(b=>b.date===d && b.slot===s).length;
   const getQuota  = (d,s) => quotas[d]?.[s] ?? defQuota;
   const isFull    = (d,s) => getBooked(d,s) >= getQuota(d,s);
@@ -316,14 +314,14 @@ function App() {
         <div><div className="ht">莫江然 · 意識空間</div><div className="hs">看見因才能改命｜意識空間譯者</div></div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <a href={LINE_URL} target="_blank" rel="noreferrer" style={{color:"var(--line)",fontSize:12,border:"1px solid var(--line)",borderRadius:20,padding:"5px 14px",textDecoration:"none",display:"flex",alignItems:"center",gap:5}}>💬 LINE</a>
-          <button className={`btab ${view==="booking"?"on":""}`} onClick={()=>setView("booking")}>預約系統</button>
-          <button className={`btab ${view==="admin"?"on":""}`} onClick={()=>setView("admin")}>後台管理</button>
+          <button className={"btab " + (view==="booking"?"on":"")} onClick={()=>setView("booking")}>預約系統</button>
+          <button className={"btab " + (view==="admin"?"on":"")} onClick={()=>setView("admin")}>後台管理</button>
         </div>
       </header>
       <div style={{maxWidth:860,margin:"0 auto",padding:"28px 16px"}}>
         {view==="booking"
-          ? <BookingView services={services} bookings={bookings} getQuota={getQuota} getBooked={getBooked} isFull={isFull} saveBookings={saveBookings} emailCfg={emailCfg} address={address} notices={notices}/>
-          : <AdminView   services={services} bookings={bookings} quotas={quotas} defQuota={defQuota} emailCfg={emailCfg} address={address} notices={notices} adminAuth={adminAuth} setAdminAuth={setAdminAuth} saveServices={saveServices} saveBookings={saveBookings} saveQuotas={saveQuotas} saveDefQuota={saveDefQuota} saveEmailCfg={saveEmailCfg} saveAddress={saveAddress} saveNotices={saveNotices} getQuota={getQuota} getBooked={getBooked}/>}
+          ? React.createElement(BookingView, {services, bookings, getQuota, getBooked, isFull, saveBookings, emailCfg, address, notices})
+          : React.createElement(AdminView,   {services, bookings, quotas, defQuota, emailCfg, address, notices, adminAuth, setAdminAuth, saveServices, saveBookings, saveQuotas, saveDefQuota, saveEmailCfg, saveAddress, saveNotices, getQuota, getBooked})}
       </div>
     </div>
   );
@@ -350,7 +348,6 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
   function isSunday(y,m,d){ return new Date(y,m,d).getDay()===0; }
   function isSaturday(y,m,d){ return new Date(y,m,d).getDay()===6; }
 
-  // 三段式截止：上午→當天17起，下午→隔天10起，晚上→隔天13起
   function getEarliestBookable() {
     const now=new Date(); const h=now.getHours();
     const td=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
@@ -434,10 +431,9 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
 
   return (
     <div className="fu">
-      {/* 壽星優惠 */}
       <div style={{marginBottom:16}}>
         <button
-          onClick={()=>setIsBirthday(b=>!b)}
+          onClick={()=>setIsBirthday(function(b){return !b;})}
           style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:"2px solid",transition:"all .2s",
             background: isBirthday?"linear-gradient(135deg,#e87040,#f0a060)":"transparent",
             borderColor: isBirthday?"#f0a060":"rgba(240,160,96,0.4)",
@@ -446,9 +442,8 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
         </button>
       </div>
 
-      {/* 步驟條 */}
       <div className="steps">
-        {steps.map((s,i)=>{
+        {steps.map(function(s,i){
           const done=step>s.n; const act=step===s.n;
           return (
             <div key={s.n} style={{display:"flex",alignItems:"flex-start",flex:1}}>
@@ -462,54 +457,54 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
         })}
       </div>
 
-      {/* Step 1: 選服務 */}
       {step===1&&(
         <div className="fu">
           <ST>☆ 選擇服務項目</ST>
           <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
-            {activeServices.map(s=>(
-              <div key={s.id} className={`svc ${svc?.id===s.id?"svcs":""}`} onClick={()=>setSvc(s)}>
-                <div>
-                  <div style={{fontWeight:600,fontSize:15}}>{s.name}</div>
-                  {s.desc&&<div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>{s.desc}</div>}
-                  {ONLINE_SERVICE_IDS.includes(s.id)&&<div style={{fontSize:11,color:"var(--line)",marginTop:4}}>💬 線上服務請加老師個人 LINE：<a href={PERSONAL_LINE} target="_blank" rel="noreferrer" style={{color:"var(--line)"}}>點此加入</a></div>}
+            {activeServices.map(function(s){
+              return (
+                <div key={s.id} className={"svc " + (svc&&svc.id===s.id?"svcs":"")} onClick={function(){setSvc(s);}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:15}}>{s.name}</div>
+                    {s.desc&&<div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>{s.desc}</div>}
+                    {ONLINE_SERVICE_IDS.includes(s.id)&&<div style={{fontSize:11,color:"var(--line)",marginTop:4}}>💬 線上服務請加老師個人 LINE：<a href={PERSONAL_LINE} target="_blank" rel="noreferrer" style={{color:"var(--line)"}}>點此加入</a></div>}
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:17}}>${s.price.toLocaleString()}</div>
+                    {discountRate&&(
+                      <div style={{marginTop:4}}>
+                        <div style={{fontSize:11,color:"#f0a060"}}>壽星7折</div>
+                        <div style={{color:"#f0a060",fontWeight:700,fontSize:15}}>${Math.round(s.price*discountRate).toLocaleString()}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:17}}>${s.price.toLocaleString()}</div>
-                  {discountRate&&(
-                    <div style={{marginTop:4}}>
-                      <div style={{fontSize:11,color:"#f0a060"}}>壽星7折</div>
-                      <div style={{color:"#f0a060",fontWeight:700,fontSize:15}}>${Math.round(s.price*discountRate).toLocaleString()}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div style={{textAlign:"right"}}><button className="btn bg" disabled={!svc} onClick={()=>setStep(2)}>選擇日期 →</button></div>
+          <div style={{textAlign:"right"}}><button className="btn bg" disabled={!svc} onClick={function(){setStep(2);}}>選擇日期 →</button></div>
         </div>
       )}
 
-      {/* Step 2: 選日期 */}
       {step===2&&(
         <div className="fu">
           <ST>🗓️ 選擇日期</ST>
           <div className="card" style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-              <button className="btn bgh bsm" onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);setDate(null);}}>‹ 上月</button>
+              <button className="btn bgh bsm" onClick={function(){if(month===0){setMonth(11);setYear(function(y){return y-1;});}else setMonth(function(m){return m-1;});setDate(null);}}>‹ 上月</button>
               <div style={{fontFamily:"'Noto Serif TC',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)",letterSpacing:3}}>{year} · {MONTHS_ZH[month]}</div>
-              <button className="btn bgh bsm" onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);setDate(null);}}>下月 ›</button>
+              <button className="btn bgh bsm" onClick={function(){if(month===11){setMonth(0);setYear(function(y){return y+1;});}else setMonth(function(m){return m+1;});setDate(null);}}>下月 ›</button>
             </div>
             <div className="cg">
-              {WEEKDAYS_ZH.map(w=><div key={w} className="cdh">{w}</div>)}
-              {Array.from({length:firstDayOfMonth(year,month)},(_,i)=><div key={"e"+i}/>)}
-              {Array.from({length:daysInMonth(year,month)},(_,i)=>{
+              {WEEKDAYS_ZH.map(function(w){return <div key={w} className="cdh">{w}</div>;})}
+              {Array.from({length:firstDayOfMonth(year,month)},function(_,i){return <div key={"e"+i}/>;} )}
+              {Array.from({length:daysInMonth(year,month)},function(_,i){
                 const day=i+1;
                 const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const past=isPast(year,month,day); const sun=isSunday(year,month,day); const open=!past&&!sun&&hasOpenSlot(day);
                 const isTd=ds===todayStr(); const sel=date===ds;
                 return (
-                  <div key={day} className={`day ${sel?"ds":""} ${(past||sun||(!open&&!past))?"dd":""} ${isTd&&!sel?"dt":""}`} onClick={()=>{if(!past&&!sun&&open){setDate(ds);setSlot(null);}}}>
+                  <div key={day} className={"day " + (sel?"ds ":"") + ((past||sun||(!open&&!past))?"dd ":"") + (isTd&&!sel?"dt":"")} onClick={function(){if(!past&&!sun&&open){setDate(ds);setSlot(null);}}}>
                     <span>{day}</span>
                     {!past&&!sun&&open&&!sel&&<div className="dot" style={{background:"var(--green)"}}/>}
                     {!past&&!sun&&!open&&<div className="dot" style={{background:"var(--red)"}}/>}
@@ -523,17 +518,16 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
             <span><span style={{color:"var(--green)"}}>●</span> 有名額</span>
             <span><span style={{color:"var(--red)"}}>●</span> 已滿</span>
           </div>
-          <NR onBack={()=>setStep(1)} onNext={()=>setStep(3)} dis={!date} nl="選擇時段 →"/>
+          <NR onBack={function(){setStep(1);}} onNext={function(){setStep(3);}} dis={!date} nl="選擇時段 →"/>
         </div>
       )}
 
-      {/* Step 3: 選時段 */}
       {step===3&&(
         <div className="fu">
           <ST>🕐 選擇時段</ST>
           <div style={{fontSize:13,color:"var(--text2)",marginBottom:14}}>📅 {date}</div>
           <div className="sgrid" style={{marginBottom:22}}>
-            {TIME_SLOTS.map((s,idx)=>{
+            {TIME_SLOTS.map(function(s,idx){
               const b=getBooked(date,s); const q=getQuota(date,s); const full=b>=q;
               const is3hr=svc&&THREE_HOUR_IDS.includes(svc.id);
               const blocked=isSlotBlocked(s,date);
@@ -541,90 +535,84 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               const no3hrSpace=is3hr&&!isSlotAvailableFor3hr(s,date);
               const dateObj=date?new Date(date):null;
               const isSat1900=dateObj&&dateObj.getDay()===6&&s==="19:00";
-              const isPastSlot=date===todayStr()&&(()=>{const [h,m]=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),h,m)<=t;})();
+              const isPastSlot=date===todayStr()&&(function(){const arr=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),arr[0],arr[1])<=t;})();
               const earliest=getEarliestBookable();
               const isTooEarly=date<earliest.date||(date===earliest.date&&s<earliest.minSlot);
               if(isPastSlot||isTooEarly||isSat1900) return null;
               const disabled=full||blocked||notEnoughSlots||no3hrSpace;
               const reason=full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
               return (
-                <button key={s} className={`slot ${slot===s?"ss":""}`} disabled={disabled} onClick={()=>setSlot(s)}>
+                <button key={s} className={"slot " + (slot===s?"ss":"")} disabled={disabled} onClick={function(){setSlot(s);}}>
                   <div style={{fontWeight:600}}>{s}</div>
                   <div style={{fontSize:10,marginTop:3,color:disabled?"var(--red)":"var(--green)"}}>
-                    {disabled?(reason||"不可選"):`剩 ${q-b} 名`}
+                    {disabled?(reason||"不可選"):"剩 " + (q-b) + " 名"}
                   </div>
                 </button>
               );
             })}
           </div>
-          <NR onBack={()=>setStep(2)} onNext={()=>setStep(4)} dis={!slot} nl="填寫資料 →"/>
+          <NR onBack={function(){setStep(2);}} onNext={function(){setStep(4);}} dis={!slot} nl="填寫資料 →"/>
         </div>
       )}
 
-      {/* Step 4: 填資料 */}
       {step===4&&(
         <div className="fu">
           <ST>✍️ 填寫預約資料</ST>
-          {/* 摘要 */}
           <div className="card cardh" style={{marginBottom:20}}>
             <div style={{fontSize:12,color:"var(--text3)",marginBottom:10}}>預約摘要</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              <span className="tag to">📋 {svc?.name}</span>
+              <span className="tag to">📋 {svc&&svc.name}</span>
               {discountRate
-                ? <span className="tag to">💰 <s style={{opacity:.5}}>${svc?.price.toLocaleString()}</s> → ${Math.round((svc?.price||0)*discountRate).toLocaleString()} <span style={{color:"#f0a060",fontSize:10}}>（壽星7折）</span></span>
-                : <span className="tag to">💰 ${svc?.price.toLocaleString()}</span>}
+                ? <span className="tag to">💰 <s style={{opacity:.5}}>${svc&&svc.price.toLocaleString()}</s> → ${Math.round((svc&&svc.price||0)*discountRate).toLocaleString()} <span style={{color:"#f0a060",fontSize:10}}>（壽星7折）</span></span>
+                : <span className="tag to">💰 ${svc&&svc.price.toLocaleString()}</span>}
               <span className="tag to">📅 {date} {slot}</span>
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:16,marginBottom:20}}>
             <div>
               <label>☻ 姓名 <span style={{color:"var(--red)"}}>*</span></label>
-              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="請輸入您的姓名"/>
+              <input value={form.name} onChange={function(e){setForm(function(f){return Object.assign({},f,{name:e.target.value});});}} placeholder="請輸入您的姓名"/>
             </div>
             <div>
               <label>📞 聯絡電話 <span style={{color:"var(--red)"}}>*</span></label>
-              <input type="tel" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="請輸入您的手機號碼"/>
+              <input type="tel" value={form.phone} onChange={function(e){setForm(function(f){return Object.assign({},f,{phone:e.target.value});});}} placeholder="請輸入您的手機號碼"/>
             </div>
             <div>
               <label>📧 Email <span style={{color:"var(--text3)",fontSize:11}}>（選填，填寫後系統將自動寄送確認信）</span></label>
-              <input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="選填"/>
+              <input type="email" value={form.email} onChange={function(e){setForm(function(f){return Object.assign({},f,{email:e.target.value});});}} placeholder="選填"/>
             </div>
             <div>
               <label>💬 備註 <span style={{color:"var(--text3)",fontSize:11}}>（選填）</span></label>
-              <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="有任何想提前說明的可以寫在這裡" rows={3} style={{resize:"vertical"}}/>
+              <textarea value={form.note} onChange={function(e){setForm(function(f){return Object.assign({},f,{note:e.target.value});});}} placeholder="有任何想提前說明的可以寫在這裡" rows={3} style={{resize:"vertical"}}/>
             </div>
           </div>
           <div style={{padding:"13px 16px",borderRadius:10,background:"rgba(201,162,39,0.06)",border:"1px solid rgba(201,162,39,0.2)",fontSize:12,color:"var(--text2)",lineHeight:1.9,marginBottom:20}}>
             ⚠️ 收到確認通知才算完成預約喔！<br/>期待與您相見 🌙😊
           </div>
-          <NR onBack={()=>setStep(3)} onNext={handleBook} dis={saving||!form.name.trim()||!form.phone.trim()} nl={saving?<>送出中… <span className="spinsm"/></>:"確認送出 ✨"}/>
+          <NR onBack={function(){setStep(3);}} onNext={handleBook} dis={saving||!form.name.trim()||!form.phone.trim()} nl={saving?"送出中…":"確認送出 ✨"}/>
         </div>
       )}
 
-      {/* Step 5: 完成 */}
       {step===5&&(
         <div className="fu" style={{textAlign:"center",padding:"44px 0"}}>
           <div style={{fontSize:60,marginBottom:16,filter:"drop-shadow(0 0 20px rgba(201,162,39,0.4))"}}>🌙</div>
           <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:24,color:"var(--gold-light)",letterSpacing:3,marginBottom:6}}>預約資料已送出</h2>
           <div style={{fontSize:13,color:"var(--text3)",marginBottom:24}}>預約編號：{doneId}</div>
-
           <div className="card cardh" style={{maxWidth:360,margin:"0 auto 20px",textAlign:"left"}}>
             <div style={{display:"flex",flexDirection:"column",gap:9,fontSize:14,color:"var(--text2)"}}>
-              <div>📋 {svc?.name}</div>
+              <div>📋 {svc&&svc.name}</div>
               <div>📅 {date} &nbsp;🕐 {slot}</div>
               <div>👤 {form.name}</div>
               <div>📞 {form.phone}</div>
               {form.email&&<div>📧 {form.email}</div>}
-              <div>💰 ${discountRate?Math.round((svc?.price||0)*discountRate).toLocaleString():(svc?.price||0).toLocaleString()}</div>
+              <div>💰 ${discountRate?Math.round((svc&&svc.price||0)*discountRate).toLocaleString():(svc&&svc.price||0).toLocaleString()}</div>
             </div>
           </div>
-
-          {/* Email 通知狀態 */}
           {form.email && emailResult && (
-            <div className={`nbox ${emailResult.ok?"nok":"nfail"}`} style={{maxWidth:360,margin:"0 auto 16px"}}>
+            <div className={"nbox " + (emailResult.ok?"nok":"nfail")} style={{maxWidth:360,margin:"0 auto 16px"}}>
               {emailResult.ok
-                ?<><span>✅</span><span>確認信已寄出！請查收您的信箱。</span></>
-                :<><span>⚠️</span><span>Email 發送失敗（{emailResult.reason}）。請透過 LINE 聯繫老師確認。</span></>}
+                ?<React.Fragment><span>✅</span><span>確認信已寄出！請查收您的信箱。</span></React.Fragment>
+                :<React.Fragment><span>⚠️</span><span>Email 發送失敗（{emailResult.reason}）。請透過 LINE 聯繫老師確認。</span></React.Fragment>}
             </div>
           )}
           {!form.email&&(
@@ -632,7 +620,6 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               <span>📞</span><span>老師將透過 LINE 官方帳號與您確認，請注意訊息通知。</span>
             </div>
           )}
-
           {(notices||address)&&(
             <div style={{maxWidth:360,margin:"0 auto 20px",textAlign:"left"}}>
               {notices&&(
@@ -649,7 +636,6 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               )}
             </div>
           )}
-
           <a href={LINE_URL} target="_blank" rel="noreferrer"
             style={{display:"inline-flex",alignItems:"center",gap:8,background:"var(--line)",color:"#fff",padding:"12px 28px",borderRadius:30,textDecoration:"none",fontWeight:700,fontSize:15,transition:"all .2s"}}>
             💬 前往 LINE 確認預約
@@ -660,7 +646,7 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
             <a href={PERSONAL_LINE} target="_blank" rel="noreferrer" style={{color:"var(--line)",wordBreak:"break-all"}}>{PERSONAL_LINE}</a>
           </div>
           <div style={{marginTop:20}}>
-            <button className="btn bgh" onClick={()=>{setStep(1);setSvc(null);setDate(null);setSlot(null);setForm({name:"",phone:"",email:"",note:""});setEmailResult(null);}}>再次預約</button>
+            <button className="btn bgh" onClick={function(){setStep(1);setSvc(null);setDate(null);setSlot(null);setForm({name:"",phone:"",email:"",note:""});setEmailResult(null);}}>再次預約</button>
           </div>
         </div>
       )}
@@ -677,41 +663,43 @@ function AdminView({ services, bookings, quotas, defQuota, emailCfg, address, no
     <div className="fu" style={{maxWidth:340,margin:"60px auto",textAlign:"center"}}>
       <div style={{fontSize:48,marginBottom:16}}>🔐</div>
       <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:20,color:"var(--gold-light)",marginBottom:20,letterSpacing:2}}>後台管理登入</h2>
-      <input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="請輸入管理密碼" style={{marginBottom:14,textAlign:"center"}} autoCorrect="off" autoCapitalize="off" autoComplete="off" onKeyDown={e=>{if(e.key==="Enter"){if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}}/>
-      <button className="btn bg" style={{width:"100%"}} onClick={()=>{if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}>登入</button>
+      <input type="password" value={pw} onChange={function(e){setPw(e.target.value);}} placeholder="請輸入管理密碼" style={{marginBottom:14,textAlign:"center"}} autoCorrect="off" autoCapitalize="off" autoComplete="off" onKeyDown={function(e){if(e.key==="Enter"){if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}}/>
+      <button className="btn bg" style={{width:"100%"}} onClick={function(){if(pw.trim()===ADMIN_PW)setAdminAuth(true);else alert("密碼錯誤");}}>登入</button>
     </div>
   );
 
   const stats={
     total: bookings.length,
-    revenue: bookings.reduce((a,b)=>a+b.price,0),
-    today: bookings.filter(b=>b.date===todayStr()).length
+    revenue: bookings.reduce(function(a,b){return a+b.price;},0),
+    today: bookings.filter(function(b){return b.date===todayStr();}).length
   };
 
   return (
     <div className="fu">
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <h2 style={{fontFamily:"'Noto Serif TC',serif",fontSize:20,color:"var(--gold-light)",letterSpacing:2}}>⚙️ 後台管理</h2>
-        <button className="btn bgh bsm" onClick={()=>setAdminAuth(false)}>登出</button>
+        <button className="btn bgh bsm" onClick={function(){setAdminAuth(false);}}>登出</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12,marginBottom:24}}>
-        {[{l:"總預約數",v:stats.total+" 筆",i:"📋"},{l:"今日預約",v:stats.today+" 筆",i:"📅"},{l:"總金額",v:"$"+stats.revenue.toLocaleString(),i:"💰"}].map(s=>(
-          <div key={s.l} className="card cardh" style={{textAlign:"center"}}>
-            <div style={{fontSize:22,marginBottom:6}}>{s.i}</div>
-            <div style={{fontSize:20,fontWeight:700,color:"var(--gold-light)",fontFamily:"'Noto Serif TC',serif"}}>{s.v}</div>
-            <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>{s.l}</div>
-          </div>
-        ))}
+        {[{l:"總預約數",v:stats.total+" 筆",i:"📋"},{l:"今日預約",v:stats.today+" 筆",i:"📅"},{l:"總金額",v:"$"+stats.revenue.toLocaleString(),i:"💰"}].map(function(s){
+          return (
+            <div key={s.l} className="card cardh" style={{textAlign:"center"}}>
+              <div style={{fontSize:22,marginBottom:6}}>{s.i}</div>
+              <div style={{fontSize:20,fontWeight:700,color:"var(--gold-light)",fontFamily:"'Noto Serif TC',serif"}}>{s.v}</div>
+              <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>{s.l}</div>
+            </div>
+          );
+        })}
       </div>
       <div style={{display:"flex",gap:8,marginBottom:22,flexWrap:"wrap"}}>
-        {[["bookings","📋 預約紀錄"],["services","💼 服務管理"],["quotas","📊 名額設定"],["notify","✉️ 通知設定"]].map(([t,l])=>(
-          <button key={t} className={`btab ${tab===t?"on":""}`} onClick={()=>setTab(t)}>{l}</button>
-        ))}
+        {[["bookings","📋 預約紀錄"],["services","💼 服務管理"],["quotas","📊 名額設定"],["notify","✉️ 通知設定"]].map(function(arr){
+          return <button key={arr[0]} className={"btab " + (tab===arr[0]?"on":"")} onClick={function(){setTab(arr[0]);}}>{arr[1]}</button>;
+        })}
       </div>
-      {tab==="bookings" &&<AdminBookings bookings={bookings} saveBookings={saveBookings}/>}
-      {tab==="services" &&<AdminServices services={services} saveServices={saveServices}/>}
-      {tab==="quotas"   &&<AdminQuotas   quotas={quotas} defQuota={defQuota} saveQuotas={saveQuotas} saveDefQuota={saveDefQuota} getQuota={getQuota} getBooked={getBooked} bookings={bookings}/>}
-      {tab==="notify"   &&<AdminNotify   emailCfg={emailCfg} address={address} notices={notices} saveEmailCfg={saveEmailCfg} saveAddress={saveAddress} saveNotices={saveNotices}/>}
+      {tab==="bookings" && React.createElement(AdminBookings, {bookings, saveBookings})}
+      {tab==="services" && React.createElement(AdminServices, {services, saveServices})}
+      {tab==="quotas"   && React.createElement(AdminQuotas,   {quotas, defQuota, saveQuotas, saveDefQuota, getQuota, getBooked, bookings})}
+      {tab==="notify"   && React.createElement(AdminNotify,   {emailCfg, address, notices, saveEmailCfg, saveAddress, saveNotices})}
     </div>
   );
 }
@@ -728,7 +716,7 @@ function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, sa
 
   async function handleSave(){
     await Promise.all([saveEmailCfg(cfg),saveAddress(addr),saveNotices(ntc)]);
-    setSaved(true); setTimeout(()=>setSaved(false),2000);
+    setSaved(true); setTimeout(function(){setSaved(false);},2000);
   }
   async function handleTest(){
     if(!previewEmail){alert("請填寫測試用 Email");return;}
@@ -746,11 +734,11 @@ function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, sa
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div>
             <label>📍 諮詢地址</label>
-            <input value={addr} onChange={e=>setAddr(e.target.value)} placeholder="例：台中市西區 ○○路 ○○號"/>
+            <input value={addr} onChange={function(e){setAddr(e.target.value);}} placeholder="例：台中市西區 ○○路 ○○號"/>
           </div>
           <div>
             <label>📋 注意事項</label>
-            <textarea value={ntc} onChange={e=>setNtc(e.target.value)} rows={7} style={{resize:"vertical"}} placeholder="每行一條注意事項"/>
+            <textarea value={ntc} onChange={function(e){setNtc(e.target.value);}} rows={7} style={{resize:"vertical"}} placeholder="每行一條注意事項"/>
           </div>
         </div>
       </div>
@@ -758,22 +746,24 @@ function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, sa
       <div style={{marginBottom:20}}>
         <div style={{fontSize:16,fontWeight:700,color:"var(--gold-light)",marginBottom:16,fontFamily:"'Noto Serif TC',serif"}}>✉️ Email 自動通知（EmailJS）</div>
         <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
-          <div><label>Service ID</label><input value={cfg.serviceId} onChange={e=>setCfg(c=>({...c,serviceId:e.target.value}))} placeholder="service_xxxxxxx"/></div>
-          <div><label>Template ID</label><input value={cfg.templateId} onChange={e=>setCfg(c=>({...c,templateId:e.target.value}))} placeholder="template_xxxxxxx"/></div>
-          <div><label>Public Key</label><input value={cfg.publicKey} onChange={e=>setCfg(c=>({...c,publicKey:e.target.value}))} placeholder="xxxxxxxxxxxxxxx"/></div>
+          <div><label>Service ID</label><input value={cfg.serviceId} onChange={function(e){setCfg(function(c){return Object.assign({},c,{serviceId:e.target.value});});}} placeholder="service_xxxxxxx"/></div>
+          <div><label>Template ID</label><input value={cfg.templateId} onChange={function(e){setCfg(function(c){return Object.assign({},c,{templateId:e.target.value});});}} placeholder="template_xxxxxxx"/></div>
+          <div><label>Public Key</label><input value={cfg.publicKey} onChange={function(e){setCfg(function(c){return Object.assign({},c,{publicKey:e.target.value});});}} placeholder="xxxxxxxxxxxxxxx"/></div>
         </div>
         <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
           <button className="btn bg" onClick={handleSave}>{saved?"✅ 已儲存":"儲存設定"}</button>
           <div style={{display:"flex",gap:8,alignItems:"center",flex:1,minWidth:200}}>
-            <input value={previewEmail} onChange={e=>setPreviewEmail(e.target.value)} placeholder="輸入測試 Email 地址" style={{flex:1}}/>
+            <input value={previewEmail} onChange={function(e){setPreviewEmail(e.target.value);}} placeholder="輸入測試 Email 地址" style={{flex:1}}/>
             <button className="btn bgh bsm" onClick={handleTest} disabled={testing} style={{flexShrink:0}}>
-              {testing?<><span className="spinsm"/> 寄送中</>:"🧪 測試"}
+              {testing?"寄送中":"🧪 測試"}
             </button>
           </div>
         </div>
         {testResult&&(
-          <div className={`nbox ${testResult.ok?"nok":"nfail"}`}>
-            {testResult.ok?<><span>✅</span><span>測試信寄出成功！</span></>:<><span>❌</span><span>發送失敗：{testResult.reason}</span></>}
+          <div className={"nbox " + (testResult.ok?"nok":"nfail")}>
+            {testResult.ok
+              ?<React.Fragment><span>✅</span><span>測試信寄出成功！</span></React.Fragment>
+              :<React.Fragment><span>❌</span><span>發送失敗：{testResult.reason}</span></React.Fragment>}
           </div>
         )}
       </div>
@@ -785,15 +775,15 @@ function AdminNotify({ emailCfg, address, notices, saveEmailCfg, saveAddress, sa
 function AdminBookings({ bookings, saveBookings }) {
   const [q,setQ]       = useState("");
   const [sort,setSort] = useState("newest");
-  let list=[...bookings];
-  if(q) list=list.filter(b=>b.name?.includes(q)||b.phone?.includes(q)||b.date?.includes(q)||b.service?.includes(q));
-  list.sort((a,b)=>sort==="newest"?(b.createdAt||"").localeCompare(a.createdAt||""):(a.date||"").localeCompare(b.date||"")||(a.slot||"").localeCompare(b.slot||""));
-  async function del(id){if(!confirm("確定刪除？"))return; await saveBookings(bookings.filter(b=>b.id!==id));}
+  let list=[].concat(bookings);
+  if(q) list=list.filter(function(b){return (b.name&&b.name.includes(q))||(b.phone&&b.phone.includes(q))||(b.date&&b.date.includes(q))||(b.service&&b.service.includes(q));});
+  list.sort(function(a,b){return sort==="newest"?(b.createdAt||"").localeCompare(a.createdAt||""):((a.date||"").localeCompare(b.date||"")||((a.slot||"").localeCompare(b.slot||"")));});
+  async function del(id){if(!confirm("確定刪除？"))return; await saveBookings(bookings.filter(function(b){return b.id!==id;}));}
   return (
     <div>
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="搜尋姓名、電話、服務…" style={{maxWidth:280}}/>
-        <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}>
+        <input value={q} onChange={function(e){setQ(e.target.value);}} placeholder="搜尋姓名、電話、服務…" style={{maxWidth:280}}/>
+        <select value={sort} onChange={function(e){setSort(e.target.value);}} style={{width:"auto"}}>
           <option value="newest">最新建立</option>
           <option value="date">依日期排序</option>
         </select>
@@ -803,29 +793,31 @@ function AdminBookings({ bookings, saveBookings }) {
         <div style={{textAlign:"center",padding:48,color:"var(--text3)"}}>尚無預約紀錄</div>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {list.map(b=>(
-            <div key={b.id} className="card">
-              <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
-                    <span style={{fontWeight:700,fontSize:15}}>{b.name}</span>
-                    <span className="tag tgr" style={{fontSize:10}}>已確認</span>
+          {list.map(function(b){
+            return (
+              <div key={b.id} className="card">
+                <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:5}}>
+                      <span style={{fontWeight:700,fontSize:15}}>{b.name}</span>
+                      <span className="tag tgr" style={{fontSize:10}}>已確認</span>
+                    </div>
+                    <div style={{fontSize:13,color:"var(--text2)",marginBottom:3}}>{b.service}</div>
+                    <div style={{fontSize:12,color:"var(--text3)"}}>
+                      {b.phone&&<span>📞 {b.phone}</span>}
+                      {b.email&&<span style={{marginLeft:8}}>📧 {b.email}</span>}
+                    </div>
+                    {b.note&&<div style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",marginTop:3}}>備註：{b.note}</div>}
                   </div>
-                  <div style={{fontSize:13,color:"var(--text2)",marginBottom:3}}>{b.service}</div>
-                  <div style={{fontSize:12,color:"var(--text3)"}}>
-                    {b.phone&&<span>📞 {b.phone}</span>}
-                    {b.email&&<span style={{marginLeft:8}}>📧 {b.email}</span>}
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:16}}>${b.price.toLocaleString()}</div>
+                    <div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>{b.date} {b.slot}</div>
+                    <button className="btn bgh bsm" style={{fontSize:11,color:"var(--red)",borderColor:"rgba(240,112,112,0.3)",marginTop:8}} onClick={function(){del(b.id);}}>刪除</button>
                   </div>
-                  {b.note&&<div style={{fontSize:12,color:"var(--text3)",fontStyle:"italic",marginTop:3}}>備註：{b.note}</div>}
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{color:"var(--gold-light)",fontWeight:700,fontSize:16}}>${b.price.toLocaleString()}</div>
-                  <div style={{fontSize:12,color:"var(--text3)",marginTop:3}}>{b.date} {b.slot}</div>
-                  <button className="btn bgh bsm" style={{fontSize:11,color:"var(--red)",borderColor:"rgba(240,112,112,0.3)",marginTop:8}} onClick={()=>del(b.id)}>刪除</button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -836,47 +828,49 @@ function AdminBookings({ bookings, saveBookings }) {
 function AdminServices({ services, saveServices }) {
   const [editing,setEditing]=useState(null); const [form,setForm]=useState({});
   const [adding,setAdding]=useState(false); const [nw,setNw]=useState({name:"",desc:"",price:""});
-  async function saveEdit(id){await saveServices(services.map(s=>s.id===id?{...s,...form,price:parseInt(form.price)||0}:s));setEditing(null);}
-  async function toggle(id){await saveServices(services.map(s=>s.id===id?{...s,active:!s.active}:s));}
-  async function add(){if(!nw.name.trim())return alert("請填服務名稱");await saveServices([...services,{id:Date.now(),name:nw.name.trim(),desc:nw.desc.trim(),price:parseInt(nw.price)||0,active:true}]);setNw({name:"",desc:"",price:""});setAdding(false);}
-  async function del(id){if(!confirm("確定刪除？"))return;await saveServices(services.filter(s=>s.id!==id));}
+  async function saveEdit(id){await saveServices(services.map(function(s){return s.id===id?Object.assign({},s,form,{price:parseInt(form.price)||0}):s;}));setEditing(null);}
+  async function toggle(id){await saveServices(services.map(function(s){return s.id===id?Object.assign({},s,{active:!s.active}):s;}));}
+  async function add(){if(!nw.name.trim())return alert("請填服務名稱");await saveServices(services.concat([{id:Date.now(),name:nw.name.trim(),desc:nw.desc.trim(),price:parseInt(nw.price)||0,active:true}]));setNw({name:"",desc:"",price:""});setAdding(false);}
+  async function del(id){if(!confirm("確定刪除？"))return;await saveServices(services.filter(function(s){return s.id!==id;}));}
   return (
     <div>
       <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
-        {services.map(s=>(
-          <div key={s.id} className="card" style={{opacity:s.active?1:.5}}>
-            {editing===s.id?(
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="服務名稱"/>
-                <input value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="說明"/>
-                <input value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} type="number" placeholder="價格"/>
-                <div style={{display:"flex",gap:8}}><button className="btn bg bsm" onClick={()=>saveEdit(s.id)}>儲存</button><button className="btn bgh bsm" onClick={()=>setEditing(null)}>取消</button></div>
-              </div>
-            ):(
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-                <div><div style={{fontWeight:600,fontSize:15}}>{s.name}</div>{s.desc&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>{s.desc}</div>}<div style={{color:"var(--gold-light)",fontWeight:700,marginTop:6}}>${s.price.toLocaleString()}</div></div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  <button className="btn bgh bsm" onClick={()=>toggle(s.id)}>{s.active?"隱藏":"顯示"}</button>
-                  <button className="btn bg bsm" onClick={()=>{setEditing(s.id);setForm({name:s.name,desc:s.desc,price:s.price});}}>編輯</button>
-                  <button className="btn bgh bsm" style={{color:"var(--red)",borderColor:"rgba(240,112,112,0.3)"}} onClick={()=>del(s.id)}>刪除</button>
+        {services.map(function(s){
+          return (
+            <div key={s.id} className="card" style={{opacity:s.active?1:.5}}>
+              {editing===s.id?(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <input value={form.name} onChange={function(e){setForm(function(f){return Object.assign({},f,{name:e.target.value});});}} placeholder="服務名稱"/>
+                  <input value={form.desc} onChange={function(e){setForm(function(f){return Object.assign({},f,{desc:e.target.value});});}} placeholder="說明"/>
+                  <input value={form.price} onChange={function(e){setForm(function(f){return Object.assign({},f,{price:e.target.value});});}} type="number" placeholder="價格"/>
+                  <div style={{display:"flex",gap:8}}><button className="btn bg bsm" onClick={function(){saveEdit(s.id);}}>儲存</button><button className="btn bgh bsm" onClick={function(){setEditing(null);}}>取消</button></div>
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
+              ):(
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                  <div><div style={{fontWeight:600,fontSize:15}}>{s.name}</div>{s.desc&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>{s.desc}</div>}<div style={{color:"var(--gold-light)",fontWeight:700,marginTop:6}}>${s.price.toLocaleString()}</div></div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <button className="btn bgh bsm" onClick={function(){toggle(s.id);}}>{s.active?"隱藏":"顯示"}</button>
+                    <button className="btn bg bsm" onClick={function(){setEditing(s.id);setForm({name:s.name,desc:s.desc,price:s.price});}}>編輯</button>
+                    <button className="btn bgh bsm" style={{color:"var(--red)",borderColor:"rgba(240,112,112,0.3)"}} onClick={function(){del(s.id);}}>刪除</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       {adding?(
         <div className="card" style={{marginBottom:12}}>
           <div style={{fontSize:14,color:"var(--gold-light)",marginBottom:12,fontWeight:600}}>新增服務</div>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <input value={nw.name} onChange={e=>setNw(f=>({...f,name:e.target.value}))} placeholder="服務名稱 *"/>
-            <input value={nw.desc} onChange={e=>setNw(f=>({...f,desc:e.target.value}))} placeholder="說明（選填）"/>
-            <input value={nw.price} onChange={e=>setNw(f=>({...f,price:e.target.value}))} type="number" placeholder="價格"/>
-            <div style={{display:"flex",gap:8}}><button className="btn bg bsm" onClick={add}>新增</button><button className="btn bgh bsm" onClick={()=>setAdding(false)}>取消</button></div>
+            <input value={nw.name} onChange={function(e){setNw(function(f){return Object.assign({},f,{name:e.target.value});});}} placeholder="服務名稱 *"/>
+            <input value={nw.desc} onChange={function(e){setNw(function(f){return Object.assign({},f,{desc:e.target.value});});}} placeholder="說明（選填）"/>
+            <input value={nw.price} onChange={function(e){setNw(function(f){return Object.assign({},f,{price:e.target.value});});}} type="number" placeholder="價格"/>
+            <div style={{display:"flex",gap:8}}><button className="btn bg bsm" onClick={add}>新增</button><button className="btn bgh bsm" onClick={function(){setAdding(false);}}>取消</button></div>
           </div>
         </div>
       ):(
-        <button className="btn bgh" style={{width:"100%"}} onClick={()=>setAdding(true)}>＋ 新增服務項目</button>
+        <button className="btn bgh" style={{width:"100%"}} onClick={function(){setAdding(true);}}>＋ 新增服務項目</button>
       )}
     </div>
   );
@@ -886,32 +880,32 @@ function AdminServices({ services, saveServices }) {
 function AdminQuotas({ quotas, defQuota, saveQuotas, saveDefQuota, getQuota, getBooked, bookings }) {
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear()); const [month,setMonth]=useState(now.getMonth()); const [date,setDate]=useState(null);
-  async function setSlotQ(d,slot,val){const q={...quotas};if(!q[d])q[d]={};q[d][slot]=Math.max(0,parseInt(val)||0);await saveQuotas(q);}
-  async function resetDay(d){if(!confirm(`重置 ${d} 的名額？`))return;const q={...quotas};delete q[d];await saveQuotas(q);}
+  async function setSlotQ(d,slot,val){const q=Object.assign({},quotas);if(!q[d])q[d]={};q[d][slot]=Math.max(0,parseInt(val)||0);await saveQuotas(q);}
+  async function resetDay(d){if(!confirm("重置 "+d+" 的名額？"))return;const q=Object.assign({},quotas);delete q[d];await saveQuotas(q);}
   return (
     <div>
       <div className="card cardh" style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
           <span style={{fontSize:14,color:"var(--text2)"}}>預設每時段名額：</span>
-          <input type="number" value={defQuota} min={0} max={20} onChange={e=>saveDefQuota(Math.max(0,parseInt(e.target.value)||0))} style={{width:80}}/>
+          <input type="number" value={defQuota} min={0} max={20} onChange={function(e){saveDefQuota(Math.max(0,parseInt(e.target.value)||0));}} style={{width:80}}/>
           <span style={{fontSize:12,color:"var(--text3)"}}>人</span>
         </div>
       </div>
       <div className="card" style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <button className="btn bgh bsm" onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);setDate(null);}}>‹</button>
+          <button className="btn bgh bsm" onClick={function(){if(month===0){setMonth(11);setYear(function(y){return y-1;});}else setMonth(function(m){return m-1;});setDate(null);}}>‹</button>
           <div style={{fontFamily:"'Noto Serif TC',serif",fontSize:18,fontWeight:700,color:"var(--gold-light)",letterSpacing:3}}>{year} · {MONTHS_ZH[month]}</div>
-          <button className="btn bgh bsm" onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);setDate(null);}}>›</button>
+          <button className="btn bgh bsm" onClick={function(){if(month===11){setMonth(0);setYear(function(y){return y+1;});}else setMonth(function(m){return m+1;});setDate(null);}}>›</button>
         </div>
         <div className="cg">
-          {WEEKDAYS_ZH.map(w=><div key={w} className="cdh">{w}</div>)}
-          {Array.from({length:firstDayOfMonth(year,month)},(_,i)=><div key={"e"+i}/>)}
-          {Array.from({length:daysInMonth(year,month)},(_,i)=>{
+          {WEEKDAYS_ZH.map(function(w){return <div key={w} className="cdh">{w}</div>;})}
+          {Array.from({length:firstDayOfMonth(year,month)},function(_,i){return <div key={"e"+i}/>;} )}
+          {Array.from({length:daysInMonth(year,month)},function(_,i){
             const day=i+1;
             const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-            const sel=date===ds; const hc=!!quotas[ds]; const cnt=bookings.filter(b=>b.date===ds).length;
+            const sel=date===ds; const hc=!!quotas[ds]; const cnt=bookings.filter(function(b){return b.date===ds;}).length;
             return (
-              <div key={day} className={`day ${sel?"ds":""}`} onClick={()=>setDate(ds)}>
+              <div key={day} className={"day " + (sel?"ds":"")} onClick={function(){setDate(ds);}}>
                 <span>{day}</span>
                 <div style={{display:"flex",gap:2,marginTop:2}}>
                   {hc&&!sel&&<div className="dot" style={{background:"var(--gold-light)"}}/>}
@@ -926,17 +920,17 @@ function AdminQuotas({ quotas, defQuota, saveQuotas, saveDefQuota, getQuota, get
         <div className="fu">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
             <div style={{fontSize:15,color:"var(--gold-light)",fontWeight:600}}>📍 {date} 各時段名額</div>
-            {quotas[date]&&<button className="btn bgh bsm" onClick={()=>resetDay(date)}>重置預設</button>}
+            {quotas[date]&&<button className="btn bgh bsm" onClick={function(){resetDay(date);}}>重置預設</button>}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10}}>
-            {TIME_SLOTS.map(slot=>{
+            {TIME_SLOTS.map(function(slot){
               const b=getBooked(date,slot); const q=getQuota(date,slot);
               return (
                 <div key={slot} className="card">
                   <div style={{fontWeight:600,fontSize:15,marginBottom:6}}>{slot}</div>
                   <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>已預約 <span style={{color:b>0?"var(--green)":"var(--text2)"}}>{b}</span> / {q} 人</div>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" min={0} max={20} value={q} onChange={e=>setSlotQ(date,slot,e.target.value)} style={{width:64,padding:"7px 10px",textAlign:"center"}}/>
+                    <input type="number" min={0} max={20} value={q} onChange={function(e){setSlotQ(date,slot,e.target.value);}} style={{width:64,padding:"7px 10px",textAlign:"center"}}/>
                     <span style={{fontSize:11,color:"var(--text3)"}}>名額</span>
                   </div>
                 </div>
@@ -962,8 +956,7 @@ function NR({ onBack, onNext, dis, nl }) {
   );
 }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(App));
+    ReactDOM.render(React.createElement(App), document.getElementById('root'));
   </script>
 </body>
 </html>
