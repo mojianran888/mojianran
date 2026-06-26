@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>莫江然 · 意識空間預約系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--gold:#c9a227;--gl:#e8c84a;--gd:#8a6e18;--bg:#0d2b20;--text:#e8d8a8;--t2:rgba(232,216,168,0.85);--t3:rgba(232,216,168,0.6);--green:#5dd68c;--red:#f07070;--line:#00C300;--blue:#88b8ff;}
+body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.app{min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#1a4a32 0%,transparent 55%),radial-gradient(ellipse at 80% 100%,#153d28 0%,transparent 55%),var(--bg)}
+.hdr{background:rgba(10,40,28,0.92);border-bottom:1px solid rgba(201,162,39,0.3);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:100}
+.ht{font-size:18px;font-weight:900;color:var(--gl);letter-spacing:3px}
+.hs{font-size:11px;color:var(--t3);letter-spacing:1px;margin-top:2px}
+.wrap{max-width:800px;margin:0 auto;padding:20px 14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:10px;cursor:pointer;font-size:13px;padding:9px 18px;font-weight:600;transition:all .2s}
+.bg{background:linear-gradient(135deg,var(--gold),var(--gl),var(--gd));color:#1a0f00}
+.bg:disabled{opacity:.35;cursor:not-allowed}
+.bgh{background:transparent;color:var(--gold);border:1px solid rgba(201,162,39,0.4)}
+.bsm{padding:6px 13px;font-size:12px}
+.btab{background:transparent;color:var(--gold);border:1px solid rgba(201,162,39,0.25);border-radius:10px;padding:7px 15px;font-size:13px;cursor:pointer}
+.btab.on{background:linear-gradient(135deg,var(--gold),var(--gl));color:#1a0f00;border-color:transparent;font-weight:700}
+.card{background:rgba(255,255,255,0.07);border:1px solid rgba(201,162,39,0.25);border-radius:14px;padding:16px}
+.cardh{background:rgba(201,162,39,0.07);border-color:rgba(201,162,39,0.3)}
+input,textarea,select{background:rgba(255,255,255,0.06);border:1px solid rgba(201,162,39,0.25);border-radius:10px;color:var(--text);padding:10px 13px;font-size:14px;width:100%;outline:none;font-family:Arial,sans-serif}
+input:focus,textarea:focus,select:focus{border-color:var(--gold)}
+input::placeholder,textarea::placeholder{color:var(--t3)}
+select option{background:#0d2015}
+label{font-size:13px;color:var(--t2);display:block;margin-bottom:5px}
+.svc{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 15px;border-radius:12px;border:1px solid rgba(201,162,39,0.2);background:rgba(255,255,255,0.04);cursor:pointer;gap:10px;margin-bottom:8px}
+.svc:hover{border-color:rgba(201,162,39,0.4);background:rgba(201,162,39,0.05)}
+.svc.sel{border-color:var(--gold);background:rgba(201,162,39,0.1)}
+.steps{display:flex;align-items:flex-start;margin-bottom:22px}
+.sc{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sl{font-size:10px;color:var(--t3);white-space:nowrap;margin-top:3px;text-align:center}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cdh{text-align:center;font-size:11px;color:var(--t3);padding:4px 0}
+.day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;border:1px solid transparent;font-size:13px}
+.day:hover:not(.dd):not(.ds){background:rgba(201,162,39,0.1);border-color:rgba(201,162,39,0.3)}
+.ds{background:linear-gradient(135deg,var(--gold),var(--gl));color:#1a0f00;font-weight:700}
+.dd{opacity:.22;cursor:not-allowed}
+.dt:not(.ds){border-color:rgba(201,162,39,0.5)}
+.dot{width:4px;height:4px;border-radius:50%;margin-top:2px}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:7px;margin-bottom:18px}
+.slot{padding:9px 8px;border-radius:10px;border:1px solid rgba(201,162,39,0.2);background:rgba(255,255,255,0.03);color:var(--text);font-size:13px;cursor:pointer;text-align:center;width:100%}
+.slot:hover:not(:disabled):not(.ss){border-color:var(--gold);background:rgba(201,162,39,0.08)}
+.ss{background:linear-gradient(135deg,var(--gold),var(--gl));color:#1a0f00;border-color:transparent;font-weight:700}
+.slot:disabled{opacity:.28;cursor:not-allowed}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.to{background:rgba(201,162,39,0.1);border:1px solid rgba(201,162,39,0.3);color:var(--gl)}
+.tgr{background:rgba(93,214,140,0.15);border:1px solid rgba(93,214,140,0.3);color:var(--green)}
+.nbox{padding:12px 14px;border-radius:11px;font-size:13px;display:flex;align-items:flex-start;gap:8px;margin-bottom:11px}
+.nok{background:rgba(93,214,140,0.08);border:1px solid rgba(93,214,140,0.25);color:var(--green)}
+.nfail{background:rgba(240,112,112,0.08);border:1px solid rgba(240,112,112,0.25);color:var(--red)}
+.ninfo{background:rgba(136,184,255,0.08);border:1px solid rgba(136,184,255,0.25);color:var(--blue)}
+.sh{font-size:16px;font-weight:700;color:var(--gl);margin-bottom:14px;letter-spacing:2px}
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.divr{height:1px;background:linear-gradient(90deg,transparent,rgba(201,162,39,0.25),transparent);margin:18px 0}
+.spin{width:24px;height:24px;border:3px solid rgba(201,162,39,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="hdr">
+  <div><div class="ht">莫江然 · 意識空間</div><div class="hs">看見因才能改命｜意識空間譯者</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <a href="https://lin.ee/pscg9XZ" target="_blank" style="color:#00C300;font-size:12px;border:1px solid #00C300;border-radius:20px;padding:5px 12px;text-decoration:none">💬 LINE</a>
+    <button class="btab on" id="tb1" onclick="showTab('booking')">預約系統</button>
+    <button class="btab" id="tb2" onclick="showTab('admin')">後台管理</button>
+  </div>
+</header>
+<div class="wrap">
+  <div id="pg-booking"></div>
+  <div id="pg-admin" style="display:none"></div>
+</div>
+</div>
+
+<script>
+var LINE_URL="https://lin.ee/pscg9XZ";
+var PERSONAL_LINE="https://line.me/ti/p/7yJEvJdUY6";
+var GAS="https://script.google.com/macros/s/AKfycbxQdIMD9QvAv9dqe7xIqR9LX6RwDAzAguqztHLaGurJewoNbvGr8DwW0Kf3iUwCyEZ3/exec";
+var WH="https://hook.eu2.make.com/buq9jsnn73y2cgffexx1ay2sd9sn801z";
+var PW="Mo8899";
+var SLOTS=["10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"];
+var MZ=["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
+var WD=["日","一","二","三","四","五","六"];
+var SVCS=[
+  {id:7,name:"全台首創重建元辰宮",desc:"客製化心靈建構｜重建生命藍圖",price:6800,active:true},
+  {id:10,name:"元辰宮深化校準",desc:"30分鐘 / 線上｜必須觀過第一次元辰宮",price:1500,active:true},
+  {id:11,name:"觀看累世角色技能開啟連結天賦",desc:"線上 1小時",price:2500,active:true},
+  {id:9,name:"財富能量調整",desc:"每月農曆30日前報名，初一啟動，每月可報名一次",price:1111,active:true},
+  {id:2,name:"線上諮詢服務",desc:"15分鐘 / 線上",price:600,active:true},
+  {id:8,name:"線上諮詢服務",desc:"50分鐘 / 線上",price:1800,active:true},
+  {id:1,name:"諮詢能量調頻",desc:"40分鐘 / 線上",price:1800,active:true},
+  {id:3,name:"超渡祖先 亡靈",desc:"每位計費｜請先詢問小編",price:8600,active:true},
+  {id:4,name:"超渡嬰靈",desc:"每位計費｜請先詢問小編",price:2000,active:true},
+  {id:5,name:"現場手術台連線",desc:"小產手術現場聯線｜請先詢問小編",price:3600,active:true}
+];
+
+var D={
+  services:JSON.parse(JSON.stringify(SVCS)),
+  bookings:[],quotas:{},defQ:1,
+  eCfg:{serviceId:"",templateId:"",publicKey:""},
+  addr:"台中（詳細地址請至後台通知設定填寫）",notices:"",
+  auth:false,tab:"booking",
+  step:1,svc:null,yr:new Date().getFullYear(),mo:new Date().getMonth(),
+  date:null,slot:null,name:"",phone:"",email:"",note:"",
+  bday:false,saving:false,doneId:"",eResult:null,
+  atab:"bookings",ayr:null,amo:null,adate:null
+};
+
+function p2(n){return String(n).padStart(2,"0")}
+function tod(){var d=new Date();return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())}
+function dim(y,m){return new Date(y,m+1,0).getDate()}
+function fd1(y,m){return new Date(y,m,1).getDay()}
+function isPast(y,m,d){var a=new Date(y,m,d);a.setHours(0,0,0,0);var b=new Date();b.setHours(0,0,0,0);return a<b}
+function isSun(y,m,d){return new Date(y,m,d).getDay()===0}
+function isSat(y,m,d){return new Date(y,m,d).getDay()===6}
+function $(i){return document.getElementById(i)}
+function lg(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}}
+function ls(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+
+function earliest(){
+  var n=new Date(),h=n.getHours();
+  var td=n.getFullYear()+"-"+p2(n.getMonth()+1)+"-"+p2(n.getDate());
+  var t=new Date(n);t.setDate(t.getDate()+1);
+  var tmr=t.getFullYear()+"-"+p2(t.getMonth()+1)+"-"+p2(t.getDate());
+  if(h<13)return{date:td,min:"17:00"};
+  if(h<17)return{date:tmr,min:"10:00"};
+  return{date:tmr,min:"13:00"};
+}
+function getB(d,s){var c=0;for(var i=0;i<D.bookings.length;i++){if(D.bookings[i].date===d&&D.bookings[i].slot===s)c++;}return c}
+function getQ(d,s){return(D.quotas[d]&&D.quotas[d][s]!==undefined)?D.quotas[d][s]:D.defQ}
+function full(d,s){return getB(d,s)>=getQ(d,s)}
+function hasSlot(day){
+  if(isSun(D.yr,D.mo,day))return false;
+  var ds=D.yr+"-"+p2(D.mo+1)+"-"+p2(day);
+  var e=earliest();if(ds<e.date)return false;
+  for(var i=0;i<SLOTS.length;i++){
+    var s=SLOTS[i];
+    if(isSat(D.yr,D.mo,day)&&s==="19:00")continue;
+    if(ds===e.date&&s<e.min)continue;
+    if(!full(ds,s))return true;
+  }
+  return false;
+}
+
+function showTab(t){
+  D.tab=t;
+  $("tb1").className="btab"+(t==="booking"?" on":"");
+  $("tb2").className="btab"+(t==="admin"?" on":"");
+  $("pg-booking").style.display=t==="booking"?"":"none";
+  $("pg-admin").style.display=t==="admin"?"":"none";
+  if(t==="booking")renderBooking();else renderAdmin();
+}
+
+function init(){
+  var ec=lg("mjr:ec"),ad=lg("mjr:addr"),nt=lg("mjr:notices");
+  if(ec)D.eCfg=ec;if(ad)D.addr=ad;if(nt!==null)D.notices=nt;
+  renderBooking();
+  fetch(GAS+"?action=getAll").then(function(r){return r.json();}).then(function(gas){
+    if(!gas)return;
+    if(gas.bookings&&gas.bookings.length>0){
+      var rows=gas.bookings.filter(function(r){return r[0];});
+      D.bookings=rows.map(function(r){
+        var ds=String(r[5]||""),pts=ds.split(" ");
+        return{id:r[0],createdAt:r[1]||"",name:r[2]||"",phone:r[3]||"",email:"",service:r[4]||"",date:pts[0]||"",slot:pts[1]||"",price:Number(r[6])||0,note:r[7]||""};
+      });
+    }
+    if(gas.settings&&gas.settings.length>0){
+      var sm={};gas.settings.forEach(function(r){if(r[0])sm[r[0]]=r[1];});
+      try{if(sm.services)D.services=JSON.parse(sm.services);}catch(e){}
+      try{if(sm.quotas)D.quotas=JSON.parse(sm.quotas);}catch(e){}
+      try{if(sm.defQuota)D.defQ=JSON.parse(sm.defQuota);}catch(e){}
+    }
+    if(D.tab==="booking")renderBooking();else renderAdmin();
+  }).catch(function(){});
+}
+
+function saveAll(){
+  fetch(GAS,{method:"POST",body:JSON.stringify({action:"saveSettings",rows:[["services",JSON.stringify(D.services)],["quotas",JSON.stringify(D.quotas)],["defQuota",JSON.stringify(D.defQ)]]})}).catch(function(){});
+}
+
+function renderBooking(){
+  var el=$("pg-booking");
+  var disc=D.bday?0.7:null;
+  var active=D.services.filter(function(s){return s.active;});
+  var h="";
+
+  // 壽星按鈕
+  h+='<div style="margin-bottom:13px"><button onclick="D.bday=!D.bday;renderBooking()" style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid;background:'+(D.bday?"linear-gradient(135deg,#e87040,#f0a060)":"transparent")+';border-color:'+(D.bday?"#f0a060":"rgba(240,160,96,0.4)")+';color:'+(D.bday?"#fff":"#f0a060")+'">🎂 '+(D.bday?"✓ 壽星7折已套用！":"我是本月壽星（點我享7折）")+'</button></div>';
+
+  // 步驟條
+  var steps=["選服務","選日期","選時段","填資料","完成"];
+  h+='<div class="steps">';
+  for(var i=0;i<steps.length;i++){
+    var done=D.step>i+1,act=D.step===i+1;
+    var bg=(done||act)?"linear-gradient(135deg,#c9a227,#e8c84a)":"rgba(255,255,255,0.1)";
+    var co=(done||act)?"#1a0f00":"rgba(232,216,168,0.6)";
+    h+='<div style="display:flex;align-items:flex-start;flex:1"><div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto"><div class="sc" style="background:'+bg+';color:'+co+'">'+(done?"✓":(i+1))+'</div><div class="sl" style="color:'+((done||act)?"#e8c84a":"rgba(232,216,168,0.6)")+'">'+steps[i]+'</div></div>';
+    if(i<steps.length-1)h+='<div style="flex:1;height:2px;background:'+(done?"linear-gradient(90deg,#c9a227,#e8c84a)":"rgba(201,162,39,0.15)")+';margin:13px 3px 0;min-width:3px"></div>';
+    h+='</div>';
+  }
+  h+='</div>';
+
+  // Step 1
+  if(D.step===1){
+    h+='<div class="sh">☆ 選擇服務項目</div>';
+    for(var i=0;i<active.length;i++){
+      var s=active[i],sel=D.svc&&D.svc.id===s.id;
+      h+='<div class="svc'+(sel?" sel":"")+'" onclick="selSvc('+s.id+')">';
+      h+='<div style="flex:1"><div style="font-weight:600;font-size:14px;margin-bottom:3px">'+esc(s.name)+'</div>';
+      if(s.desc)h+='<div style="font-size:12px;color:rgba(232,216,168,0.6)">'+esc(s.desc)+'</div>';
+      h+='</div><div style="text-align:right;flex-shrink:0"><div style="color:#e8c84a;font-weight:700;font-size:15px">$'+s.price.toLocaleString()+'</div>';
+      if(disc)h+='<div style="font-size:11px;color:#f0a060;margin-top:2px">壽星7折</div><div style="color:#f0a060;font-weight:700;font-size:13px">$'+Math.round(s.price*disc).toLocaleString()+'</div>';
+      h+='</div></div>';
+    }
+    h+='<div style="text-align:right;margin-top:6px"><button class="btn bg" '+(D.svc?"":"disabled")+' onclick="D.step=2;renderBooking()">選擇日期 →</button></div>';
+  }
+
+  // Step 2
+  if(D.step===2){
+    h+='<div class="sh">🗓️ 選擇日期</div><div class="card" style="margin-bottom:14px">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+    h+='<button class="btn bgh bsm" onclick="prevMo()">‹ 上月</button>';
+    h+='<div style="font-size:16px;font-weight:700;color:#e8c84a;letter-spacing:2px">'+D.yr+' · '+MZ[D.mo]+'</div>';
+    h+='<button class="btn bgh bsm" onclick="nextMo()">下月 ›</button></div>';
+    h+='<div class="cal">';
+    for(var i=0;i<WD.length;i++)h+='<div class="cdh">'+WD[i]+'</div>';
+    for(var i=0;i<fd1(D.yr,D.mo);i++)h+='<div></div>';
+    var days=dim(D.yr,D.mo);
+    for(var d=1;d<=days;d++){
+      var ds=D.yr+"-"+p2(D.mo+1)+"-"+p2(d);
+      var past=isPast(D.yr,D.mo,d),sun=isSun(D.yr,D.mo,d),open=!past&&!sun&&hasSlot(d);
+      var sel=D.date===ds,today=ds===tod();
+      var cls="day"+(sel?" ds":"")+((past||sun||!open)?" dd":"")+(today&&!sel?" dt":"");
+      var oc=(past||sun||!open)?"":'onclick="selDate(\''+ds+'\')"';
+      h+='<div class="'+cls+'" '+oc+'><span>'+d+'</span>';
+      if(!past&&!sun&&open&&!sel)h+='<div class="dot" style="background:#5dd68c"></div>';
+      if(!past&&!sun&&!open)h+='<div class="dot" style="background:#f07070"></div>';
+      if(!past&&sun&&!sel)h+='<div style="font-size:9px;color:rgba(232,216,168,0.35)">休</div>';
+      h+='</div>';
+    }
+    h+='</div></div>';
+    h+='<div style="font-size:12px;color:rgba(232,216,168,0.6);display:flex;gap:12px;margin-bottom:14px"><span><span style="color:#5dd68c">●</span> 有名額</span><span><span style="color:#f07070">●</span> 已滿</span></div>';
+    h+='<div class="nav"><button class="btn bgh" onclick="D.step=1;renderBooking()">← 返回</button><button class="btn bg" '+(D.date?"":"disabled")+' onclick="D.step=3;renderBooking()">選擇時段 →</button></div>';
+  }
+
+  // Step 3
+  if(D.step===3){
+    var e=earliest();
+    h+='<div class="sh">🕐 選擇時段</div><div style="font-size:13px;color:rgba(232,216,168,0.85);margin-bottom:11px">📅 '+D.date+'</div><div class="slots">';
+    for(var i=0;i<SLOTS.length;i++){
+      var sl=SLOTS[i];
+      var b=getB(D.date,sl),q=getQ(D.date,sl),f=b>=q;
+      var sat=D.date&&new Date(D.date).getDay()===6&&sl==="19:00";
+      var early=D.date<e.date||(D.date===e.date&&sl<e.min);
+      var pastSl=D.date===tod()&&(function(s){var a=s.split(":").map(Number),t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),a[0],a[1])<=t;})(sl);
+      if(pastSl||early||sat)continue;
+      var dis=f;
+      var ss=D.slot===sl?" ss":"";
+      h+='<button class="slot'+ss+'" '+(dis?"disabled":"")+' onclick="D.slot=\''+sl+'\';renderBooking()">';
+      h+='<div style="font-weight:600">'+sl+'</div><div style="font-size:10px;margin-top:2px;color:'+(dis?"#f07070":"#5dd68c")+'">'+(dis?"已滿":"剩 "+(q-b)+" 名")+'</div></button>';
+    }
+    h+='</div><div class="nav"><button class="btn bgh" onclick="D.step=2;renderBooking()">← 返回</button><button class="btn bg" '+(D.slot?"":"disabled")+' onclick="D.step=4;renderBooking()">填寫資料 →</button></div>';
+  }
+
+  // Step 4
+  if(D.step===4){
+    var fp=disc?Math.round((D.svc?D.svc.price:0)*disc):(D.svc?D.svc.price:0);
+    h+='<div class="sh">✍️ 填寫預約資料</div>';
+    h+='<div class="card cardh" style="margin-bottom:16px"><div style="font-size:12px;color:rgba(232,216,168,0.6);margin-bottom:7px">預約摘要</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    h+='<span class="tag to">📋 '+esc(D.svc?D.svc.name:"")+'</span>';
+    h+='<span class="tag to">💰 $'+fp.toLocaleString()+(disc?" (壽星7折)":"")+'</span>';
+    h+='<span class="tag to">📅 '+D.date+' '+D.slot+'</span></div></div>';
+    h+='<div style="display:flex;flex-direction:column;gap:13px;margin-bottom:16px">';
+    h+='<div><label>☻ 姓名 <span style="color:#f07070">*</span></label><input id="f1" value="'+esc(D.name)+'" oninput="D.name=this.value" placeholder="請輸入您的姓名"/></div>';
+    h+='<div><label>📞 聯絡電話 <span style="color:#f07070">*</span></label><input type="tel" id="f2" value="'+esc(D.phone)+'" oninput="D.phone=this.value" placeholder="請輸入您的手機號碼"/></div>';
+    h+='<div><label>📧 Email <span style="font-size:11px;color:rgba(232,216,168,0.6)">（選填）</span></label><input type="email" id="f3" value="'+esc(D.email)+'" oninput="D.email=this.value" placeholder="選填"/></div>';
+    h+='<div><label>💬 備註 <span style="font-size:11px;color:rgba(232,216,168,0.6)">（選填）</span></label><textarea id="f4" oninput="D.note=this.value" rows="3" style="resize:vertical" placeholder="有任何想提前說明的可以寫在這裡">'+esc(D.note)+'</textarea></div>';
+    h+='</div>';
+    h+='<div style="padding:11px 13px;border-radius:10px;background:rgba(201,162,39,0.06);border:1px solid rgba(201,162,39,0.2);font-size:12px;color:rgba(232,216,168,0.85);line-height:1.9;margin-bottom:16px">⚠️ 收到確認通知才算完成預約喔！<br/>期待與您相見 🌙😊</div>';
+    var canB=!D.saving&&D.name.trim()&&D.phone.trim();
+    h+='<div class="nav"><button class="btn bgh" onclick="D.step=3;renderBooking()">← 返回</button><button class="btn bg" '+(canB?"":"disabled")+' onclick="doBook()">'+(D.saving?"送出中…":"確認送出 ✨")+'</button></div>';
+  }
+
+  // Step 5
+  if(D.step===5){
+    var fp2=D.bday?Math.round((D.svc?D.svc.price:0)*0.7):(D.svc?D.svc.price:0);
+    h+='<div style="text-align:center;padding:36px 0">';
+    h+='<div style="font-size:54px;margin-bottom:12px">🌙</div>';
+    h+='<h2 style="font-size:21px;color:#e8c84a;letter-spacing:3px;margin-bottom:5px">預約資料已送出</h2>';
+    h+='<div style="font-size:13px;color:rgba(232,216,168,0.6);margin-bottom:18px">預約編號：'+D.doneId+'</div>';
+    h+='<div class="card cardh" style="max-width:320px;margin:0 auto 14px;text-align:left"><div style="display:flex;flex-direction:column;gap:7px;font-size:14px;color:rgba(232,216,168,0.85)">';
+    h+='<div>📋 '+esc(D.svc?D.svc.name:"")+'</div><div>📅 '+D.date+' 🕐 '+D.slot+'</div>';
+    h+='<div>👤 '+esc(D.name)+'</div><div>📞 '+esc(D.phone)+'</div>';
+    if(D.email)h+='<div>📧 '+esc(D.email)+'</div>';
+    h+='<div>💰 $'+fp2.toLocaleString()+'</div></div></div>';
+    if(D.eResult)h+='<div class="nbox '+(D.eResult.ok?"nok":"nfail")+'" style="max-width:320px;margin:0 auto 10px"><span>'+(D.eResult.ok?"✅":"⚠️")+'</span><span>'+(D.eResult.ok?"確認信已寄出！":"Email失敗："+D.eResult.reason)+'</span></div>';
+    if(!D.email)h+='<div class="nbox ninfo" style="max-width:320px;margin:0 auto 10px"><span>📞</span><span>老師將透過LINE官方帳號與您確認，請注意訊息通知。</span></div>';
+    h+='<a href="'+LINE_URL+'" target="_blank" style="display:inline-flex;align-items:center;gap:7px;background:#00C300;color:#fff;padding:10px 24px;border-radius:28px;text-decoration:none;font-weight:700;font-size:14px;margin-bottom:14px">💬 前往LINE確認預約</a>';
+    h+='<div style="margin-top:14px"><button class="btn bgh" onclick="resetB()">再次預約</button></div></div>';
+  }
+
+  el.innerHTML=h;
+}
+
+function selSvc(id){for(var i=0;i<D.services.length;i++){if(D.services[i].id===id){D.svc=D.services[i];break;}}renderBooking();}
+function selDate(d){D.date=d;D.slot=null;renderBooking();}
+function prevMo(){if(D.mo===0){D.mo=11;D.yr--;}else D.mo--;D.date=null;renderBooking();}
+function nextMo(){if(D.mo===11){D.mo=0;D.yr++;}else D.mo++;D.date=null;renderBooking();}
+function resetB(){D.step=1;D.svc=null;D.date=null;D.slot=null;D.name="";D.phone="";D.email="";D.note="";D.eResult=null;D.bday=false;renderBooking();}
+
+function doBook(){
+  if(!D.name.trim()||!D.phone.trim()){alert("請填寫姓名與電話");return;}
+  D.saving=true;renderBooking();
+  var disc=D.bday?0.7:null;
+  var b={id:"BK"+Date.now(),createdAt:new Date().toISOString(),name:D.name.trim(),phone:D.phone.trim(),email:D.email.trim(),note:D.note.trim(),date:D.date,slot:D.slot,dateSlot:D.date+" "+D.slot,service:D.svc.name,price:disc?Math.round(D.svc.price*disc):D.svc.price,status:"confirmed"};
+  D.bookings.push(b);
+  fetch(GAS,{method:"POST",body:JSON.stringify(Object.assign({action:"saveBooking"},b))}).catch(function(){});
+  fetch(WH,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({event:"new_booking",booking_id:b.id,name:b.name,phone:b.phone,email:b.email,service:b.service,price:b.price,date:b.date,slot:b.slot,dateSlot:b.dateSlot,note:b.note,created_at:b.createdAt})}).catch(function(){});
+  D.doneId=b.id;D.saving=false;D.eResult=null;D.step=5;renderBooking();
+}
+
+function renderAdmin(){
+  var el=$("pg-admin");
+  if(!D.auth){
+    el.innerHTML='<div style="max-width:300px;margin:60px auto;text-align:center"><div style="font-size:44px;margin-bottom:12px">🔐</div><h2 style="font-size:18px;color:#e8c84a;margin-bottom:16px;letter-spacing:2px">後台管理登入</h2><input type="password" id="pwi" placeholder="請輸入管理密碼" style="margin-bottom:11px;text-align:center" onkeydown="if(event.key===\'Enter\')aLogin()"/><button class="btn bg" style="width:100%" onclick="aLogin()">登入</button></div>';
+    return;
+  }
+  var tot=D.bookings.length,rev=D.bookings.reduce(function(a,b){return a+b.price;},0),td=D.bookings.filter(function(b){return b.date===tod();}).length;
+  var h='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px"><h2 style="font-size:18px;color:#e8c84a;letter-spacing:2px">⚙️ 後台管理</h2><button class="btn bgh bsm" onclick="D.auth=false;renderAdmin()">登出</button></div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px">';
+  [{l:"總預約數",v:tot+" 筆",i:"📋"},{l:"今日預約",v:td+" 筆",i:"📅"},{l:"總金額",v:"$"+rev.toLocaleString(),i:"💰"}].forEach(function(s){
+    h+='<div class="card cardh" style="text-align:center"><div style="font-size:19px;margin-bottom:4px">'+s.i+'</div><div style="font-size:18px;font-weight:700;color:#e8c84a">'+s.v+'</div><div style="font-size:11px;color:rgba(232,216,168,0.6);margin-top:3px">'+s.l+'</div></div>';
+  });
+  h+='</div>';
+  h+='<div style="display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap">';
+  [["bookings","📋 預約紀錄"],["services","💼 服務管理"],["quotas","📊 名額設定"],["notify","✉️ 通知設定"]].forEach(function(t){
+    h+='<button class="btab'+(D.atab===t[0]?" on":"")+'" onclick="D.atab=\''+t[0]+'\';renderAdmin()">'+t[1]+'</button>';
+  });
+  h+='</div>';
+  if(D.atab==="bookings")h+=rABook();
+  if(D.atab==="services")h+=rASvc();
+  if(D.atab==="quotas")h+=rAQ();
+  if(D.atab==="notify")h+=rANotify();
+  el.innerHTML=h;
+}
+
+function aLogin(){var pw=$("pwi")?$("pwi").value:"";if(pw.trim()===PW){D.auth=true;renderAdmin();}else alert("密碼錯誤");}
+
+function rABook(){
+  var list=D.bookings.slice().sort(function(a,b){return(b.createdAt||"").localeCompare(a.createdAt||"");});
+  if(!list.length)return'<div style="text-align:center;padding:38px;color:rgba(232,216,168,0.6)">尚無預約紀錄</div>';
+  var h="";
+  list.forEach(function(b){
+    h+='<div class="card" style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:7px"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;margin-bottom:3px">'+esc(b.name)+' <span class="tag tgr" style="font-size:10px">已確認</span></div><div style="font-size:13px;color:rgba(232,216,168,0.85);margin-bottom:2px">'+esc(b.service)+'</div><div style="font-size:12px;color:rgba(232,216,168,0.6)">'+esc(b.phone)+(b.note?"<br/>備註："+esc(b.note):"")+'</div></div><div style="text-align:right;flex-shrink:0"><div style="color:#e8c84a;font-weight:700;font-size:14px">$'+b.price.toLocaleString()+'</div><div style="font-size:12px;color:rgba(232,216,168,0.6);margin-top:2px">'+b.date+' '+b.slot+'</div><button class="btn bgh bsm" style="font-size:11px;color:#f07070;border-color:rgba(240,112,112,0.3);margin-top:5px" onclick="delB(\''+b.id+'\')">刪除</button></div></div></div>';
+  });
+  return h;
+}
+function delB(id){if(!confirm("確定刪除？"))return;D.bookings=D.bookings.filter(function(b){return b.id!==id;});renderAdmin();}
+
+function rASvc(){
+  var h="";
+  D.services.forEach(function(s,i){
+    h+='<div class="card" style="margin-bottom:9px;opacity:'+(s.active?1:.5)+'"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:7px"><div><div style="font-weight:600;font-size:14px">'+esc(s.name)+'</div><div style="font-size:12px;color:rgba(232,216,168,0.6);margin-top:2px">'+esc(s.desc||"")+'</div><div style="color:#e8c84a;font-weight:700;margin-top:4px">$'+s.price.toLocaleString()+'</div></div><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn bgh bsm" onclick="togSvc('+i+')">'+(s.active?"隱藏":"顯示")+'</button><button class="btn bgh bsm" style="color:#f07070;border-color:rgba(240,112,112,0.3)" onclick="delSvc('+i+')">刪除</button></div></div></div>';
+  });
+  h+='<button class="btn bgh" style="width:100%;margin-top:4px" onclick="addSvc()">＋ 新增服務項目</button>';
+  return h;
+}
+function togSvc(i){D.services[i].active=!D.services[i].active;saveAll();renderAdmin();}
+function delSvc(i){if(!confirm("確定刪除？"))return;D.services.splice(i,1);saveAll();renderAdmin();}
+function addSvc(){var n=prompt("服務名稱");if(!n)return;var p=parseInt(prompt("價格")||"0");D.services.push({id:Date.now(),name:n,desc:"",price:p,active:true});saveAll();renderAdmin();}
+
+function rAQ(){
+  if(!D.ayr){D.ayr=new Date().getFullYear();D.amo=new Date().getMonth();}
+  var h='<div class="card cardh" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap"><span style="font-size:13px;color:rgba(232,216,168,0.85)">預設每時段名額：</span><input type="number" value="'+D.defQ+'" min="0" max="20" style="width:65px" onchange="D.defQ=Math.max(0,parseInt(this.value)||0);saveAll()"/><span style="font-size:12px;color:rgba(232,216,168,0.6)">人</span></div></div>';
+  h+='<div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px"><button class="btn bgh bsm" onclick="aPrev()">‹</button><div style="font-size:16px;font-weight:700;color:#e8c84a;letter-spacing:2px">'+D.ayr+' · '+MZ[D.amo]+'</div><button class="btn bgh bsm" onclick="aNext()">›</button></div>';
+  h+='<div class="cal">';
+  for(var i=0;i<WD.length;i++)h+='<div class="cdh">'+WD[i]+'</div>';
+  for(var i=0;i<fd1(D.ayr,D.amo);i++)h+='<div></div>';
+  for(var d=1;d<=dim(D.ayr,D.amo);d++){
+    var ds=D.ayr+"-"+p2(D.amo+1)+"-"+p2(d);
+    var sel=D.adate===ds,cnt=D.bookings.filter(function(b){return b.date===ds;}).length;
+    h+='<div class="day'+(sel?" ds":"")+'" onclick="D.adate=\''+ds+'\';renderAdmin()"><span>'+d+'</span>'+(cnt>0&&!sel?'<div class="dot" style="background:#5dd68c"></div>':"")+'</div>';
+  }
+  h+='</div></div>';
+  if(D.adate){
+    h+='<div style="font-size:13px;color:#e8c84a;font-weight:600;margin-bottom:11px">📍 '+D.adate+' 各時段名額</div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px">';
+    SLOTS.forEach(function(sl){
+      var b2=getB(D.adate,sl),q2=getQ(D.adate,sl);
+      h+='<div class="card"><div style="font-weight:600;font-size:13px;margin-bottom:4px">'+sl+'</div><div style="font-size:12px;color:rgba(232,216,168,0.6);margin-bottom:6px">已預約 <span style="color:'+(b2>0?"#5dd68c":"rgba(232,216,168,0.85)")+'">'+b2+'</span> / '+q2+' 人</div><input type="number" min="0" max="20" value="'+q2+'" style="width:58px;padding:5px 7px;text-align:center" onchange="setSQ(\''+D.adate+'\',\''+sl+'\',this.value)"/></div>';
+    });
+    h+='</div>';
+  }
+  return h;
+}
+function setSQ(d,s,v){if(!D.quotas[d])D.quotas[d]={};D.quotas[d][s]=Math.max(0,parseInt(v)||0);saveAll();}
+function aPrev(){if(D.amo===0){D.amo=11;D.ayr--;}else D.amo--;renderAdmin();}
+function aNext(){if(D.amo===11){D.amo=0;D.ayr++;}else D.amo++;renderAdmin();}
+
+function rANotify(){
+  return '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px"><div><label>📍 諮詢地址</label><input id="na" value="'+esc(D.addr)+'" placeholder="例：台中市西區○○路○○號"/></div><div><label>📋 注意事項</label><textarea id="nn" rows="6" style="resize:vertical">'+esc(D.notices)+'</textarea></div></div><div class="divr"></div><div style="font-size:14px;font-weight:700;color:#e8c84a;margin-bottom:12px">✉️ EmailJS 設定</div><div style="display:flex;flex-direction:column;gap:10px;margin-bottom:13px"><div><label>Service ID</label><input id="ns" value="'+esc(D.eCfg.serviceId)+'" placeholder="service_xxxxxxx"/></div><div><label>Template ID</label><input id="nt" value="'+esc(D.eCfg.templateId)+'" placeholder="template_xxxxxxx"/></div><div><label>Public Key</label><input id="np" value="'+esc(D.eCfg.publicKey)+'" placeholder="xxxxxxxxxxxxxxx"/></div></div><button class="btn bg" onclick="saveN()">儲存設定</button>';
+}
+function saveN(){
+  D.addr=$("na")?$("na").value:D.addr;
+  D.notices=$("nn")?$("nn").value:D.notices;
+  D.eCfg={serviceId:$("ns")?$("ns").value:"",templateId:$("nt")?$("nt").value:"",publicKey:$("np")?$("np").value:""};
+  ls("mjr:ec",D.eCfg);ls("mjr:addr",D.addr);ls("mjr:notices",D.notices);
+  alert("✅ 已儲存");
+}
+
+init();
+</script>
+</body>
+</html>
