@@ -664,7 +664,7 @@ const CONFIG = {
   EMAILJS_TEMPLATE: 'template_wqugwja',
   EMAILJS_PUBLIC: 'RliHSmYpPbKAfoVFn',
   MAKE_WEBHOOK: 'https://hook.eu2.make.com/buq9jsnn73y2cgffexx1ay2sd9sn801z',
-  GAS_URL: '', // 填入你的 GAS URL（用於讀取已預約時段）
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbwx97t_82w6ALhK-MgbmJx9zwpNo_lLrRmU6umof8wEgqfUE9zv_rtbgiUYbbf25JPC/exec', // 填入你的 GAS URL（用於讀取已預約時段）
   LINE_URL: 'https://lin.ee/pscg9XZ',
   ADMIN_PASSWORD: 'Mo8899',
   // 若無 GAS，以下為本地已知預約（測試用，正式用 GAS）
@@ -946,21 +946,24 @@ function isSlotRestricted(date, slotHour) {
   const selDate = new Date(date); selDate.setHours(0,0,0,0);
   const diffDays = Math.round((selDate - today) / 86400000);
   const nowHour = new Date().getHours();
-  const slotSession = getSessionForHour(slotHour);
+
+  // 超過1天以後 → 全部可選
+  if (diffDays > 1) return false;
 
   if (diffDays === 0) {
-    // Same day: only evening allowed if now < 12
-    if (nowHour >= 0 && nowHour < 12) return slotSession !== 'evening';
-    return true; // all same-day slots restricted otherwise
+    // 今天
+    if (nowHour < 12) return slotHour < 16;      // 早上現在 → 只能選晚上(16+)
+    return true;                                   // 中午/晚上現在 → 今天全鎖
   }
+
   if (diffDays === 1) {
-    // Tomorrow
-    if (nowHour >= 12 && nowHour < 16) return slotSession !== 'morning';
-    if (nowHour >= 16) return slotSession !== 'noon';
-    return false; // if now is morning and tomorrow → tomorrow evening+ allowed? 
-    // Actually: morning now → only evening today. Tomorrow has no restriction
+    // 明天
+    if (nowHour >= 12 && nowHour < 16) return slotHour >= 12; // 中午現在 → 明天只能選早上(<12)
+    if (nowHour >= 16) return slotHour < 12 || slotHour >= 16; // 晚上現在 → 明天只能選中午(12-15)
+    return false; // 早上現在 → 明天全部可選
   }
-  return false; // future days: no restriction
+
+  return false;
 }
 
 function renderTimeSlots() {
