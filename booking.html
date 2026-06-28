@@ -19,7 +19,7 @@ const ADMIN_PW = "Mo8899";
 const LINE_URL = "https://lin.ee/pscg9XZ";
 const PERSONAL_LINE = "https://line.me/ti/p/7yJEvJdUY6";
 const ONLINE_SERVICE_IDS = [2, 8, 10, 11]; // 線上服務
-const TIME_SLOTS = ["10:00","11:00","13:00","14:00","15:00","16:00","19:00"];
+const TIME_SLOTS = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00"];
 const MONTHS_ZH = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
 const WEEKDAYS_ZH = ["日","一","二","三","四","五","六"];
 const THREE_HOUR_IDS = [7]; // 全台首創重建元辰宮
@@ -353,9 +353,9 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
     const td = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
     const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
     const tmr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
-    if(h < 13) return { date: td, minSlot: "13:00" };
-    if(h < 18) return { date: tmr, minSlot: "10:00" };
-    return { date: tmr, minSlot: "13:00" };
+    if(h < 13)  return { date: td,  minSlot: "17:00" }; // 上午 → 當天晚上17:00起
+    if(h < 17)  return { date: tmr, minSlot: "10:00" }; // 下午 → 隔天上午10:00起
+    return       { date: tmr, minSlot: "13:00" };        // 晚上 → 隔天下午13:00起
   }
 
   function isSaturday(year, month, day){
@@ -554,15 +554,15 @@ function BookingView({ services, bookings, getQuota, getBooked, isFull, saveBook
               const blocked = isSlotBlocked(s, date);
               const notEnoughSlots = is3hr && idx > TIME_SLOTS.length - 3;
               const no3hrSpace = is3hr && !isSlotAvailableFor3hr(s, date);
-              // Block Saturday 19:00
               const dateObj = date ? new Date(date) : null;
               const isSat1900 = dateObj && dateObj.getDay()===6 && s==="19:00";
-              // Block past slots when date is today
               const isPastSlot = date===todayStr() && (()=>{const [h,m]=s.split(':').map(Number);const t=new Date();return new Date(t.getFullYear(),t.getMonth(),t.getDate(),h,m)<=t;})();
               const earliest = getEarliestBookable();
               const isTooEarly = date < earliest.date || (date === earliest.date && s < earliest.minSlot);
-              const disabled = full || blocked || notEnoughSlots || no3hrSpace || isSat1900 || isPastSlot || isTooEarly;
-              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":isPastSlot||isTooEarly?"時段已過":"";
+              // 直接隱藏已過和不符合時段
+              if(isPastSlot || isTooEarly || isSat1900) return null;
+              const disabled = full || blocked || notEnoughSlots || no3hrSpace;
+              const reason = full?"已滿":blocked?"已佔用":notEnoughSlots?"時間不足":no3hrSpace?"後續已滿":"";
               return (
                 <button key={s} className={`slot ${slot===s?"ss":""}`} disabled={disabled} onClick={()=>setSlot(s)}>
                   <div style={{fontWeight:600}}>{s}</div>
@@ -1058,8 +1058,8 @@ function NR({ onBack, onNext, dis, nl }) {
 }
 
 
-    
-  ReactDOM.render(React.createElement(App), document.getElementById('root'));
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
   </script>
 </body>
 </html>
