@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>莫江然・意識空間｜預約系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;background:#0d2b20;color:#e8d8a8;min-height:100vh}
+.header{background:rgba(10,40,28,0.9);border-bottom:1px solid rgba(201,162,39,0.3);padding:16px 20px}
+.ht{font-size:1.2rem;font-weight:900;color:#e8c84a;letter-spacing:4px}
+.hs{font-size:11px;color:rgba(232,216,168,0.6);letter-spacing:2px;margin-top:2px}
+.bday-banner{margin:14px 16px 0;background:linear-gradient(135deg,#2a1f0a,#3a2a10);border:1.5px solid #c9a227;border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.toggle-sw{width:44px;height:24px;background:#333;border-radius:12px;position:relative;transition:background .3s;flex-shrink:0}
+.toggle-sw::after{content:'';position:absolute;width:18px;height:18px;background:white;border-radius:50%;top:3px;left:3px;transition:transform .3s}
+.toggle-sw.on{background:#c9a227}
+.toggle-sw.on::after{transform:translateX(20px)}
+.nav-tabs{display:flex;margin:14px 16px 0;background:rgba(255,255,255,0.06);border-radius:12px;padding:4px;gap:4px}
+.nav-tab{flex:1;padding:10px 8px;text-align:center;border-radius:8px;font-size:0.8rem;color:rgba(232,216,168,0.6);cursor:pointer;border:none;background:transparent}
+.nav-tab.on{background:#c9a227;color:#1a0f00;font-weight:600}
+.sec-title{font-size:0.75rem;color:rgba(232,216,168,0.6);letter-spacing:0.15em;padding:18px 16px 8px}
+.svc-card{background:rgba(255,255,255,0.06);border:1px solid rgba(201,162,39,0.15);border-radius:12px;padding:16px;margin:0 16px 10px;cursor:pointer}
+.svc-card.sel{border-color:#c9a227;background:rgba(36,51,32,0.8)}
+.svc-name{font-size:1rem;font-weight:600}
+.svc-price{font-size:1.05rem;font-weight:700;color:#c9a227}
+.svc-desc{font-size:0.78rem;color:rgba(232,216,168,0.6);margin-top:5px}
+.tag{display:inline-block;font-size:0.68rem;background:rgba(201,168,76,0.12);color:#c9a227;border-radius:4px;padding:2px 7px;margin-top:6px;margin-right:4px}
+.sticky{position:fixed;bottom:0;left:0;right:0;padding:12px 16px;background:linear-gradient(to top,#0d2b20 60%,transparent)}
+.btn-main{width:100%;padding:16px;background:#c9a227;color:#1a0f00;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer}
+.btn-main:disabled{background:#444;color:#666;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="ht">莫江然・意識空間</div>
+  <div class="hs">看見因才能改命｜意識空間譯者</div>
+</div>
+
+<div class="bday-banner" id="bdayBanner" onclick="toggleBday()">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:1.3rem">&#127874;</span>
+    <div>
+      <div style="font-size:0.88rem;color:#e8c84a;font-weight:500">本月壽星 8 折優惠</div>
+      <div style="font-size:0.7rem;color:rgba(232,216,168,0.6);margin-top:2px">點選啟用，所有服務自動折扣</div>
+    </div>
+  </div>
+  <div class="toggle-sw" id="bdayToggle"></div>
+</div>
+
+<div class="nav-tabs">
+  <button class="nav-tab on" id="tabBooking" onclick="showTab('booking')">預約系統</button>
+  <button class="nav-tab" id="tabLine" onclick="window.open('https://lin.ee/pscg9XZ','_blank')">LINE 聯絡</button>
+  <button class="nav-tab" id="tabAdmin" onclick="showTab('admin')">後台管理</button>
+</div>
+
+<div id="viewBooking">
+  <div class="sec-title">選擇服務項目</div>
+  <div id="svcList"></div>
+  <div style="height:80px"></div>
+  <div class="sticky">
+    <button class="btn-main" id="toStep2" disabled>選擇日期與時間 →</button>
+  </div>
+</div>
+
+<div id="viewAdmin" style="display:none">
+  <div style="padding:20px;color:#e8c84a">後台管理</div>
+</div>
+
+<script>
+var isBday = false;
+
+var SERVICES = [
+  {id:'yuanchen', name:'全台首創重建元辰宮', desc:'客製化心靈建構｜重建生命藍圖｜過程大約 2～2.5 小時', price:8800, tags:['線上/現場']},
+  {id:'deep', name:'元辰宮深化教準', desc:'30 分鐘｜現場 or 線上｜須觀過第一次元辰宮', price:1500, tags:['線上/現場']},
+  {id:'wealth', name:'財富能量調整', desc:'每月財富調頻，每月農曆 30 日前報名', price:1111, birthdayPrice:888, tags:['線上']},
+  {id:'consult', name:'線上諮詢服務', desc:'15 分鐘｜線上', price:600, tags:['線上']},
+  {id:'energy', name:'諮詢能量調頻', desc:'40 分鐘｜線上 or 現場', price:1800, tags:['線上/現場']},
+  {id:'ancestor', name:'超渡祖先 亡靈', desc:'每位計費｜預約後請至官方帳號說明超渡內容', price:8600, tags:['線上'], lineRequired:true},
+  {id:'baby', name:'超渡嬰靈', desc:'每位計費｜預約後請至官方帳號說明超渡內容', price:2000, tags:['線上'], lineRequired:true},
+  {id:'surgery', name:'現場手術台連線', desc:'小產手術現場聯線｜線上', price:3600, tags:['線上']}
+];
+
+var selSvc = null;
+
+function getPrice(s) {
+  if (!isBday) return s.price;
+  if (s.birthdayPrice) return s.birthdayPrice;
+  return Math.round(s.price * 0.8);
+}
+
+function toggleBday() {
+  isBday = !isBday;
+  document.getElementById('bdayToggle').className = isBday ? 'toggle-sw on' : 'toggle-sw';
+  renderSvcs();
+}
+
+function showTab(tab) {
+  document.getElementById('viewBooking').style.display = tab === 'booking' ? 'block' : 'none';
+  document.getElementById('viewAdmin').style.display = tab === 'admin' ? 'block' : 'none';
+  document.getElementById('tabBooking').className = tab === 'booking' ? 'nav-tab on' : 'nav-tab';
+  document.getElementById('tabAdmin').className = tab === 'admin' ? 'nav-tab on' : 'nav-tab';
+}
+
+function renderSvcs() {
+  var el = document.getElementById('svcList');
+  el.innerHTML = '';
+  for (var i = 0; i < SERVICES.length; i++) {
+    var s = SERVICES[i];
+    var p = getPrice(s);
+    var div = document.createElement('div');
+    div.className = selSvc && selSvc.id === s.id ? 'svc-card sel' : 'svc-card';
+    var origHtml = isBday ? '<div style="font-size:0.72rem;color:rgba(232,216,168,0.5);text-decoration:line-through">$' + s.price.toLocaleString() + '</div>' : '';
+    var tagsHtml = '';
+    for (var j = 0; j < s.tags.length; j++) {
+      tagsHtml += '<span class="tag">' + s.tags[j] + '</span>';
+    }
+    if (s.lineRequired) tagsHtml += '<span class="tag" style="color:#4caf50">&#128242; 預約後請至官方帳號說明超渡內容</span>';
+    div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div class="svc-name">' + s.name + '</div><div style="text-align:right;margin-left:12px">' + origHtml + '<div class="svc-price">$' + p.toLocaleString() + '</div></div></div><div class="svc-desc">' + s.desc + '</div><div style="margin-top:6px">' + tagsHtml + '</div>';
+    (function(svc) {
+      div.onclick = function() {
+        selSvc = svc;
+        renderSvcs();
+        document.getElementById('toStep2').disabled = false;
+      };
+    })(s);
+    el.appendChild(div);
+  }
+}
+
+renderSvcs();
+</script>
+</body>
+</html>
